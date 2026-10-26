@@ -31,6 +31,13 @@ describe("mongoDbName", () => {
     expect(mongoDbName()).toBe("prod");
   });
 
+  it("signale un mot de passe non encodé au lieu de prendre l'hôte pour le nom de base", () => {
+    withEnv({ MONGODB_DB: "", MONGODB_URI: "mongodb+srv://user:1234/cd@cluster0.abcde.mongodb.net/?retryWrites=true" });
+    expect(() => mongoDbName()).toThrow(/MONGODB_URI invalide.*encodez-les/);
+    withEnv({ MONGODB_URI: "mongodb+srv://user:1234%2Fcd@cluster0.abcde.mongodb.net/?retryWrites=true" });
+    expect(mongoDbName()).toBe("liaison-orl");
+  });
+
   it("refuse un nom contenant un point avec un message explicite", () => {
     withEnv({ MONGODB_DB: "cluster0.abcde.mongodb.net" });
     expect(() => mongoDbName()).toThrow(/MONGODB_DB invalide/);

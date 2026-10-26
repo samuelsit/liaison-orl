@@ -1,3 +1,4 @@
+import ConnectionString from "mongodb-connection-string-url";
 import { z } from "zod";
 
 /**
@@ -99,22 +100,30 @@ function isValidDbName(name: string) {
   return name.length > 0 && name.length <= 64 && !/[\s./\\$"*<>:|?\0]/.test(name);
 }
 
-/** Nom de base porté par le chemin d'une URI MongoDB (`…mongodb.net/ma-base?…`), s'il y en a un. */
-function dbNameFromUri(uri: string): string | undefined {
+/**
+ * Nom de base porté par le chemin d'une URI MongoDB (`…mongodb.net/ma-base?…`), s'il y en a un.
+ * Lu avec le parseur du driver : `new URL()` découpe mal une URI dont le mot de passe contient
+ * un « / » non encodé et prenait alors le nom d'hôte du cluster pour le nom de la base.
+ */
+function dbNameFromUri(uri: string, variable: string): string | undefined {
+  let path: string;
   try {
-    const path = decodeURIComponent(new URL(uri).pathname.replace(/^\//, ""));
-    return path || undefined;
-  } catch {
-    // URI non standard : pas de nom exploitable.
-    return undefined;
+    path = new ConnectionString(uri).pathname;
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `${variable} invalide (${reason}). Si le mot de passe contient des caractères spéciaux (@ : / ? # [ ] %), ` +
+        "encodez-les (ex. « / » → %2F, « @ » → %40) ou choisissez un mot de passe alphanumérique dans Atlas.",
+    );
   }
+  return decodeURIComponent(path.replace(/^\//, "")) || undefined;
 }
 
 export function mongoDbName(): string {
   const e = env();
   if (e.MONGODB_DB) {
     // URI complète collée par erreur dans MONGODB_DB : on reprend sa base, sinon le nom par défaut.
-    const name = /^mongodb(\+srv)?:\/\//i.test(e.MONGODB_DB) ? (dbNameFromUri(e.MONGODB_DB) ?? DEFAULT_DB_NAME) : e.MONGODB_DB;
+    const name = /^mongodb(\+srv)?:\/\//i.test(e.MONGODB_DB) ? (dbNameFromUri(e.MONGODB_DB, "MONGODB_DB") ?? DEFAULT_DB_NAME) : e.MONGODB_DB;
     if (!isValidDbName(name)) {
       throw new Error(
         `MONGODB_DB invalide (« ${name} ») : indiquez seulement le nom de la base, par exemple « ${DEFAULT_DB_NAME} », ` +
@@ -123,8 +132,11 @@ export function mongoDbName(): string {
     }
     return name;
   }
-  const fromUri = dbNameFromUri(mongoUri());
-  return fromUri && isValidDbName(fromUri) ? fromUri : DEFAULT_DB_NAME;
+  const fromUri = dbNameFromUri(mongoUri(), "MONGODB_URI");
+  if (fromUri && !isValidDbName(fromUri)) {
+    throw new Error(`Nom de base invalide dans MONGODB_URI (« ${fromUri} ») : le chemin après le nom d'hôte doit être le seul nom de la base.`);
+  }
+  return fromUri ?? DEFAULT_DB_NAME;
 }
 
 const DEV_SECRET = "dev-secret-ne-pas-utiliser-en-production-0123456789";
