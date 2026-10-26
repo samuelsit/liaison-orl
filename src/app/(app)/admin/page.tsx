@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ServiceCards } from "@/components/admin/service-cards";
+import { ServicesSummaryCard } from "@/components/admin/service-cards";
 import { getAdminContext } from "@/lib/auth/session";
 import { serviceStatus } from "@/server/services/service-status";
 import { computeStats } from "@/server/services/stats";
@@ -20,12 +20,7 @@ export default async function AdminHome() {
   ];
   return (
     <div className="space-y-8">
-      <section aria-labelledby="t-services" className="space-y-3">
-        <h2 id="t-services" className="text-lg font-semibold">
-          État des services
-        </h2>
-        <ServiceCards initial={services} />
-      </section>
+      <ServicesSummaryCard initial={services} />
       <section aria-labelledby="t-activite" className="space-y-3">
         <div className="flex items-end justify-between">
           <h2 id="t-activite" className="text-lg font-semibold">

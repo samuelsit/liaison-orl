@@ -58,10 +58,10 @@ export function DispatchListShell({
     return () => ro.disconnect();
   }, []);
 
-  const active = [
-    channel ? { key: "canal", label: E.channels[channel] } : null,
-    allCentres ? { key: "centres", label: E.allCentres } : null,
-  ].filter((f): f is { key: string; label: string } => f !== null);
+  const active: { key: string; label: string }[] = [
+    ...(channel ? [{ key: "canal", label: E.channels[channel] }] : []),
+    ...(allCentres ? [{ key: "centres", label: E.allCentres }] : []),
+  ];
 
   return (
     <>

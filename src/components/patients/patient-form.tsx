@@ -86,12 +86,14 @@ export function PatientForm({
       noValidate
       className="space-y-5"
       onKeyDown={submitOnModEnter}
-      onSubmit={handleSubmit(async (v) => {
-        const next = intent.current;
-        intent.current = undefined;
-        if (dateInvalid) return;
-        await onSubmit({ ...v, usualPrescriberId: prescriber?.id ?? null }, next);
-      })}
+      onSubmit={(e) =>
+        handleSubmit(async (v) => {
+          const next = intent.current;
+          intent.current = undefined;
+          if (dateInvalid) return;
+          await onSubmit({ ...v, usualPrescriberId: prescriber?.id ?? null }, next);
+        })(e)
+      }
     >
       <Controller
         control={control}

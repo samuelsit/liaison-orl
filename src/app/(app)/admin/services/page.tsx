@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ServiceCards } from "@/components/admin/service-cards";
+import { ServicesPanel } from "@/components/admin/service-cards";
 import { getAdminContext } from "@/lib/auth/session";
 import { appUrl, env, pingenEnvironment } from "@/lib/env";
 import { serviceStatus } from "@/server/services/service-status";
@@ -19,7 +19,7 @@ export default async function ServicesPage() {
   ];
   return (
     <div className="space-y-8">
-      <ServiceCards initial={states} />
+      <ServicesPanel initial={states} />
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Adresses à déclarer chez les prestataires</h2>
         <div className="overflow-x-auto rounded-xl border bg-card">

@@ -20,7 +20,6 @@ export function safeNext(value: unknown, fallback: string = FALLBACK): string {
   if (value.length === 0 || value.length > 2048) return fallback;
   if (!value.startsWith("/") || value.startsWith("//")) return fallback;
   // Le navigateur lit « \ » comme « / » et ignore tabulations et retours à la ligne.
-  // eslint-disable-next-line no-control-regex
   if (/[\\\u0000-\u001F\u007F]/.test(value)) return fallback;
   if (value.includes("://")) return fallback;
   let url: URL;

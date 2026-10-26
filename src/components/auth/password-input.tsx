@@ -83,7 +83,7 @@ export function PasswordInput({
 
 /** Règles d'un nouveau mot de passe, cochées en direct (longueur, et concordance si `confirm` est fourni). */
 export function PasswordRules({ password, confirm, id, className }: { password: string; confirm?: string; id?: string; className?: string }) {
-  const rules = [{ label: T.ruleLength, met: password.length >= PASSWORD_MIN_LENGTH }];
+  const rules: { label: string; met: boolean }[] = [{ label: T.ruleLength, met: password.length >= PASSWORD_MIN_LENGTH }];
   if (confirm !== undefined) rules.push({ label: T.ruleMatch, met: confirm.length > 0 && confirm === password });
   return (
     <ul id={id} aria-label={T.rulesLabel} className={cn("space-y-1 text-meta", className)}>

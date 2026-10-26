@@ -22,7 +22,8 @@ export function storage(): StorageProvider {
   } else if (e.VERCEL) {
     instance = new GridFsStorage();
   } else {
-    instance = new LocalStorage(path.resolve(process.cwd(), e.LOCAL_STORAGE_DIR));
+    // Disque local : développement uniquement (jamais sur Vercel) — exclu du traçage des fichiers.
+    instance = new LocalStorage(path.resolve(/*turbopackIgnore: true*/ process.cwd(), e.LOCAL_STORAGE_DIR));
   }
   return instance;
 }
