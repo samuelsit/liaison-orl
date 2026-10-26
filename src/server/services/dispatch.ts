@@ -22,7 +22,7 @@ import { audit } from "@/server/audit";
 import { emailBrand, renderEmail } from "@/server/emails/render";
 import { AccessCodeEmail, DocumentEmail } from "@/server/emails/document";
 import { emailProvider } from "./email";
-import { EmailSendError } from "./email/types";
+import { EmailSendError, emailErrorHint } from "./email/types";
 import { postalProvider, PostalError, type PostalOptions } from "./postal";
 import { explainPostalIssue } from "./postal/status-map";
 import { actor, getDocumentForUser } from "./documents";
@@ -289,7 +289,7 @@ export async function sendDocument(ctx: UserContext, documentId: string, input: 
     } catch (err) {
       const e =
         err instanceof EmailSendError
-          ? { code: err.code, message: "L'e-mail n'a pas pu être envoyé.", hint: err.retryable ? "Réessayez dans quelques minutes." : `Vérifiez l'adresse e-mail du prescripteur. (${err.message})` }
+          ? { code: err.code, message: "L'e-mail n'a pas pu être envoyé.", hint: emailErrorHint(err) }
           : err instanceof PostalError
             ? { code: err.code, message: err.message, hint: err.hint }
             : err instanceof UserFacingError

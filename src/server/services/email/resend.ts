@@ -1,6 +1,6 @@
 import "server-only";
 import { Resend } from "resend";
-import { formatFrom } from "./from";
+import { formatFrom, senderAddress } from "./from";
 import { EmailSendError, type EmailProvider, type OutgoingEmail } from "./types";
 
 export class ResendEmailProvider implements EmailProvider {
@@ -13,6 +13,8 @@ export class ResendEmailProvider implements EmailProvider {
   }
 
   async send(email: OutgoingEmail) {
+    const { issue } = senderAddress();
+    if (issue) throw new EmailSendError(issue, "sender_config", false);
     const { data, error } = await this.client.emails.send(
       {
         from: formatFrom(email.fromName),
@@ -36,6 +38,8 @@ export class ResendEmailProvider implements EmailProvider {
   }
 
   async ping() {
+    const { issue } = senderAddress();
+    if (issue) throw new Error(issue);
     const { error } = await this.client.domains.list();
     if (error) throw new Error(error.message);
   }

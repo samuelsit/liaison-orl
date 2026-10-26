@@ -3,6 +3,7 @@ import { db } from "@/lib/db/client";
 import { env, pingenEnvironment, serviceModes } from "@/lib/env";
 import { aiProvider } from "@/ai";
 import { emailProvider } from "./email";
+import { senderAddress } from "./email/from";
 import { postalProvider } from "./postal";
 import { storage } from "./storage";
 
@@ -36,8 +37,11 @@ export async function serviceStatus(opts: { test: boolean }): Promise<ServiceSta
     const err = opts.test ? await check(ping) : null;
     states.push({ key, label, mode, status: err ? "error" : "ok", detail: err ? `Échec du test : ${err}` : liveDetail });
   };
+  const sender = senderAddress();
   await one("ai", "IA (Anthropic)", m.ai, "Réponses simulées (ANTHROPIC_API_KEY absente)", `Vision : ${e.AI_MODEL_VISION} · Rédaction : ${e.AI_MODEL_TEXT}`, () => aiProvider().ping());
-  await one("email", "E-mail (Resend)", m.email, "E-mails simulés, visibles dans la boîte d'envoi de démonstration", `Expéditeur technique : ${e.EMAIL_FROM_ADDRESS ?? (e.EMAIL_FROM_DOMAIN ? `ne-pas-repondre@${e.EMAIL_FROM_DOMAIN}` : "à configurer")}`, () => emailProvider().ping());
+  await one("email", "E-mail (Resend)", m.email, "E-mails simulés, visibles dans la boîte d'envoi de démonstration", `Expéditeur technique : ${sender.address}`, () => emailProvider().ping());
+  // Expéditeur invalide : signalé sans attendre le test de connexion (chaque envoi échouerait).
+  if (m.email === "live" && sender.issue) Object.assign(states[states.length - 1], { status: "error", detail: sender.issue });
   await one("postal", "Courrier (Pingen)", m.postal, "Courriers simulés (aucun envoi réel)", `Environnement : ${pingenEnvironment() === "production" ? "production" : "staging (test, aucun envoi réel)"}`, () => postalProvider().ping());
   await one("storage", "Stockage des fichiers", m.storage, storage().name === "gridfs" ? "Stockage de démonstration dans MongoDB (GridFS)" : "Disque local (développement)", `S3 ${e.S3_BUCKET} (${e.S3_REGION}), chiffrement côté serveur`, () => storage().ping());
   return states;
