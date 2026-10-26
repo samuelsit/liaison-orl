@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["cdg1"],
+  "crons": [
+    { "path": "/api/cron/statuts", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/purge", "schedule": "30 2 * * *" }
+  ],
+  "functions": {
+    "src/app/api/documents/[id]/bilan/route.ts": { "maxDuration": 60 },
+    "src/app/api/documents/[id]/apercu/route.ts": { "maxDuration": 30 }
+  }
+}
