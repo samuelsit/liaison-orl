@@ -92,16 +92,39 @@ export function mongoUri(): string {
   return "mongodb://127.0.0.1:27027/liaison-orl";
 }
 
+const DEFAULT_DB_NAME = "liaison-orl";
+
+/** Caractères refusés par MongoDB dans un nom de base (plus la limite de 64 octets d'Atlas). */
+function isValidDbName(name: string) {
+  return name.length > 0 && name.length <= 64 && !/[\s./\\$"*<>:|?\0]/.test(name);
+}
+
+/** Nom de base porté par le chemin d'une URI MongoDB (`…mongodb.net/ma-base?…`), s'il y en a un. */
+function dbNameFromUri(uri: string): string | undefined {
+  try {
+    const path = decodeURIComponent(new URL(uri).pathname.replace(/^\//, ""));
+    return path || undefined;
+  } catch {
+    // URI non standard : pas de nom exploitable.
+    return undefined;
+  }
+}
+
 export function mongoDbName(): string {
   const e = env();
-  if (e.MONGODB_DB) return e.MONGODB_DB;
-  try {
-    const path = new URL(mongoUri()).pathname.replace(/^\//, "");
-    if (path) return path;
-  } catch {
-    // URI non standard : on garde le nom par défaut.
+  if (e.MONGODB_DB) {
+    // URI complète collée par erreur dans MONGODB_DB : on reprend sa base, sinon le nom par défaut.
+    const name = /^mongodb(\+srv)?:\/\//i.test(e.MONGODB_DB) ? (dbNameFromUri(e.MONGODB_DB) ?? DEFAULT_DB_NAME) : e.MONGODB_DB;
+    if (!isValidDbName(name)) {
+      throw new Error(
+        `MONGODB_DB invalide (« ${name} ») : indiquez seulement le nom de la base, par exemple « ${DEFAULT_DB_NAME} », ` +
+          "sans point, espace, barre oblique ni nom d'hôte du cluster.",
+      );
+    }
+    return name;
   }
-  return "liaison-orl";
+  const fromUri = dbNameFromUri(mongoUri());
+  return fromUri && isValidDbName(fromUri) ? fromUri : DEFAULT_DB_NAME;
 }
 
 const DEV_SECRET = "dev-secret-ne-pas-utiliser-en-production-0123456789";
