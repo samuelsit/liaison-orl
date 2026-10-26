@@ -1,4 +1,4 @@
-import ConnectionString from "mongodb-connection-string-url";
+import { ConnectionString } from "mongodb-connection-string-url";
 import { z } from "zod";
 
 /**

@@ -18,7 +18,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
-  serverExternalPackages: ["@react-pdf/renderer", "fontkit", "pdfjs-dist", "mongodb-memory-server", "sharp"],
+  serverExternalPackages: ["@react-pdf/renderer", "fontkit", "pdfjs-dist", "mongodb-memory-server", "mongodb-connection-string-url", "sharp"],
   outputFileTracingIncludes: {
     "/**": ["./assets/fonts/**/*", "./assets/brand/**/*"],
     "/api/pdf-worker": ["./node_modules/pdfjs-dist/build/pdf.worker.min.mjs"],
