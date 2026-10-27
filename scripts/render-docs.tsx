@@ -7,7 +7,8 @@
  * Avec --previews, copie les captures de référence dans docs/previews/.
  */
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import sharp from "sharp";
 import path from "node:path";
 import { pdfFixtures } from "@/lib/pdf/fixtures";
 import { postalAddress } from "@/lib/pdf/address";
@@ -69,10 +70,15 @@ for (const { name, model } of await pdfFixtures()) {
 }
 
 if (copyPreviews && hasPdftoppm) {
+  // Captures de référence allégées (1 000 px de large, palette) : pages des versions e-mail et postale,
+  // et page 1 des versions postales avec les zones Pingen superposées.
   const dest = path.resolve("docs/previews");
   mkdirSync(dest, { recursive: true });
   for (const f of readdirSync(dest)) if (f.endsWith(".png") && !f.startsWith("email-")) rmSync(path.join(dest, f));
-  for (const f of readdirSync(out)) if (f.endsWith(".png")) copyFileSync(path.join(out, f), path.join(dest, f));
+  for (const f of readdirSync(out)) {
+    if (!f.endsWith(".png") || (f.includes("-debug-") && !f.endsWith("-debug-1.png"))) continue;
+    await sharp(path.join(out, f)).resize({ width: 1000 }).png({ palette: true, compressionLevel: 9 }).toFile(path.join(dest, f));
+  }
   console.log(`Captures copiées dans ${dest}`);
 }
 

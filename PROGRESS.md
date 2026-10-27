@@ -1,6 +1,44 @@
 # Avancement
 
-État au 2026-10-17 : **toutes les phases sont terminées.** Le parcours complet fonctionne de bout en bout en mode démo (sans aucune clé) et il est couvert par les tests automatisés.
+État au 2026-10-27 : **toutes les phases sont terminées**, refonte des documents sortants comprise. Le parcours complet fonctionne de bout en bout en mode démo (sans aucune clé) et il est couvert par les tests automatisés.
+
+## Refonte documents (2026-10-27)
+
+Refonte de tous les documents et e-mails sortants : sobres, lisibles, paramétrés par la marque, conformes aux zones Pingen. Décisions n° 49 à 67 dans [DECISIONS.md](DECISIONS.md) ; captures dans [docs/previews/](docs/previews/).
+
+### Inventaire des gabarits sortants
+
+| | Gabarit | Code | État |
+|---|---|---|---|
+| ✅ | PDF — Courrier d'adressage (version e-mail) | `src/lib/pdf/templates/adressage.tsx` | refondu |
+| ✅ | PDF — Courrier d'adressage (version postale, adresse dans la fenêtre) | idem, variante `postal` | refondu ; page d'accompagnement supprimée |
+| ✅ | PDF — Compte rendu d'appareillage (version e-mail) | `src/lib/pdf/templates/compte-rendu.tsx` | refondu ; audiogramme et gain intégrés (ancienne annexe) |
+| ✅ | PDF — Compte rendu d'appareillage (version postale) | idem, variante `postal` | refondu |
+| ✅ | PDF — Aperçu de marque (administration) | `src/lib/pdf/sample.ts` | mêmes composants que les PDF envoyés |
+| ✅ | PDF — Aperçu en direct de l'éditeur | `/api/documents/[id]/apercu` | même moteur ; `?debug=pingen` affiche la version postale avec les zones |
+| ✅ | E-mail — Document au prescripteur, lien sécurisé (date de naissance ou code) | `src/server/emails/document.tsx` | refondu |
+| ✅ | E-mail — Document au prescripteur, PDF en pièce jointe | idem | refondu |
+| ✅ | E-mail — Copie au centre | même e-mail en copie (cc) | couvert par le gabarit ci-dessus |
+| ✅ | E-mail — Code d'accès (second facteur, message séparé) | `src/server/emails/document.tsx` | refondu |
+| ✅ | Page web de consultation du lien sécurisé (second facteur, aperçu, téléchargement, lien expiré) | `src/app/l/[token]/page.tsx` | refaite |
+| ✅ | E-mail — Invitation utilisateur | `src/server/emails/system.tsx` | refondu |
+| ✅ | E-mail — Lien magique | idem | refondu |
+| ✅ | E-mail — Réinitialisation du mot de passe | idem | refondu |
+| ➖ | E-mail — 2FA | — | sans objet : la double authentification est en TOTP (application), aucun e-mail n'est envoyé |
+| ✅ | E-mail — Notification d'erreur d'envoi | `src/server/emails/system.tsx`, `src/server/services/dispatch-notify.ts` | **créé** (n'existait pas) : envoyé à l'auteur quand un échec arrive après coup |
+
+### Zone DMC (haut droite)
+
+**Confirmé vide sur chaque page de chaque gabarit**, versions e-mail et postale, cas nominaux et cas limites : rien entre x = 182 et 205 mm pour y de 5 à 28 mm. Vérification automatique sur les boîtes englobantes extraites avec pdf.js (texte, tracés, images) dans `src/lib/pdf/documents.test.ts` et `npm run render:docs`. Sont aussi vérifiés : bord bloqué de 5 mm vide sur toutes les pages ; en page 1 de la version postale, seule l'adresse dans la zone d'affranchissement (x 90–205, y 30–94 mm), entièrement dans la zone d'adresse (x 110–190, y 50–78 mm).
+
+**Non confirmé par Pingen** : aucun identifiant staging n'est configuré, `npm run pingen:check` n'a donc pas pu déposer les gabarits chez Pingen. À lancer dès que `PINGEN_CLIENT_ID`, `PINGEN_CLIENT_SECRET` et `PINGEN_ORGANISATION_ID` (staging) sont renseignés.
+
+### Vérifications
+
+- `npm run render:docs` : 8 jeux de données (nominaux et cas limites : noms et adresses très longs, prescripteur sans cabinet, commentaire de 15 lignes, sans bilan, une seule oreille, champs optionnels vides, accents et apostrophes typographiques) × versions e-mail et postale, plus versions « debug » ; chaque page relue en PNG à 150 dpi. Défauts corrigés pendant la relecture : lettre manquante (état de police react-pdf), pagination invisible (interligne hérité), intertitre orphelin, ligne de tableau isolée, signature seule sur une page, page 1 à moitié vide (audiogramme), alignement de la signature.
+- `npm run render:emails` : 8 e-mails à 600 px et 375 px, en clair et en sombre, relus.
+- Tests automatisés ajoutés : zones Pingen (16 rendus), contenu des documents, régression de la lettre perdue, rendus simultanés, mise en forme postale NF Z10-011 (abréviations, largeur réelle, blocage), e-mails (structure, VML, préheader, texte brut, aucune information médicale), notification d'échec, **non-régression visuelle** des PDF (`tests/visual/pdf/`) et des e-mails (`tests/visual/emails/`).
+- Seed : cas limites ajoutés (patient au nom très long, prescripteur sans cabinet avec adresse longue, compte rendu de 15 lignes envoyé par courrier, une seule oreille sans bilan, brouillon vide).
 
 ## Phases
 
@@ -18,18 +56,19 @@
 
 | Commande | Résultat |
 |---|---|
-| `npm run lint` | ✅ 0 erreur, 0 avertissement |
+| `npm run lint` | ✅ 0 erreur, 0 avertissement (2026-10-27) |
 | `npm run typecheck` | ✅ |
-| `npm run test` | ✅ 21 fichiers, 107 tests (unitaires et intégration sur base MongoDB embarquée) |
+| `npm run test` | ✅ 42 fichiers, 332 tests (unitaires, intégration sur base MongoDB embarquée, zones Pingen, non-régression visuelle PDF et e-mails) |
 | `npm run build` | ✅ |
-| `npm run test:e2e` | ✅ 27 scénarios Playwright sur le build de production, en mode démo (≈ 1 min) |
+| `npm run render:docs` | ✅ 16 PDF, zones Pingen conformes partout |
+| `npm run test:e2e` | ⚠️ 21 / 27 : 6 échecs **déjà présents avant la refonte** (rejoués à l'identique sur le commit 492f911), voir « Problèmes connus » n° 8 |
 
 ## Ce qui est livré
 
 **Pour l'audioprothésiste**
 - Accueil orienté action : « Nouvel adressage » / « Nouveau compte rendu », brouillons à finir, envois récents, erreurs d'envoi.
 - Éditeur sur un seul écran : formulaire à gauche, **aperçu PDF exact en direct** à droite (onglets sur mobile), sauvegarde automatique permanente (avec copie locale de secours), validation explicite.
-- PDF **identiques aux modèles** fournis (comparaison pixel à pixel), polices embarquées, version postale avec page d'adresse pour la fenêtre La Poste, annexe audiométrique facultative.
+- PDF refondus (2026-10-27) : courrier de cabinet sobre en Inter, couleurs issues de la marque, audiogramme vectoriel et gain prothétique, version postale conforme aux zones Pingen (voir « Refonte documents »).
 - Compte rendu : dépôt du bilan (glisser-déposer, coller, photo), étapes lisibles, **lecture par l'IA** avec niveau de confiance par valeur, tableau de correction et audiogrammes redessinés, **degré BIAP et gain prothétique calculés en code** (règle affichée), commentaire rédigé (plus court / plus détaillé / plus technique), badges « Suggéré par l'IA » jusqu'à validation.
 - Adressage : motif « Autre » reformulé par l'IA à partir de quelques mots ; dictée vocale nettoyée par l'IA.
 - Valeurs mémorisées (marque, classe, rechargeable…), prescripteur habituel proposé automatiquement.
@@ -50,7 +89,7 @@
 - IA : pseudonymisation des textes avant chaque appel, sortie JSON validée par Zod (un nouvel essai puis saisie manuelle), aucune valeur inventée.
 
 **Exploitation**
-- `npm run demo` (tout en local, sans clé), `npm run seed`, `npm run admin:create`, `npm run db:indexes`, `npm run ai:check`, `npm run pdf:samples`.
+- `npm run demo` (tout en local, sans clé), `npm run seed`, `npm run admin:create`, `npm run db:indexes`, `npm run ai:check`, `npm run render:docs`, `npm run render:emails`, `npm run pingen:check`.
 - [README.md](README.md) : mise en production pas à pas (Atlas, S3, Anthropic, Resend, Pingen, Vercel, domaine, webhooks, premier administrateur, vérifications, conformité).
 - [DECISIONS.md](DECISIONS.md) : 48 décisions argumentées.
 
@@ -70,6 +109,8 @@
 4. **IA et images** : la pseudonymisation porte sur les textes ; l'image d'un bilan peut montrer le nom du patient. Signer le DPA et activer la rétention zéro chez Anthropic avant les données réelles.
 5. **Dictée vocale** : assurée par le navigateur ; Chrome et Edge envoient l'audio à Google ou Microsoft. Réglage « Dictée vocale » dans Administration → Modèles pour la désactiver si nécessaire.
 6. **Accès réseau Atlas** : sans IP fixes côté Vercel, l'accès doit être ouvert à `0.0.0.0/0` (protégé par mot de passe et TLS) ; préférer l'option d'IP statiques de Vercel si l'offre la propose.
+8. **Six tests E2E en échec, antérieurs à la refonte des documents** (mêmes échecs sur le commit 492f911, avant toute modification) : règle axe-core `label-content-name-mismatch` sur trois champs `.border-input` de l'accueil, de l'éditeur et de l'administration (4 tests d'accessibilité) ; commentaire IA non rédigé dans le délai de 20 s du parcours « compte rendu » ; délai dépassé sur le parcours mobile. Écrans non touchés par la refonte ; à corriger séparément.
+9. **Envoi de contrôle Pingen staging non réalisé** (aucun identifiant) : lancer `npm run pingen:check` pour confirmer la position du code DMC et la validation des gabarits par Pingen.
 7. La limitation de débit maison (lien sécurisé, IA) peut compter un ou deux appels de moins lors de la création simultanée d'une fenêtre ; sans conséquence pratique (le verrouillage du lien sécurisé, lui, est atomique).
 
 ## Hors périmètre V1 (prévu par le cahier des charges)

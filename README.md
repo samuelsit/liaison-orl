@@ -139,7 +139,7 @@ La consommation (appels, jetons, coût estimé) est suivie par centre dans **Adm
    - événements : `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, `email.failed`, `email.suppressed`
    - copiez le **Signing secret** (`whsec_…`) → **`RESEND_WEBHOOK_SECRET`**.
 
-Ce qui part chez Resend : l'objet (type de document et **initiales** du patient), le nom du centre et un lien. Par défaut, **le PDF n'est jamais joint** : le médecin l'ouvre via un lien à durée limitée protégé par un second facteur (date de naissance du patient ou code envoyé dans un e-mail séparé). L'administrateur peut activer la pièce jointe directe, avec avertissement.
+Ce qui part chez Resend : l'objet (type de document, civilité, initiale du prénom et nom du patient), le nom du centre et un lien. Par défaut, **le PDF n'est jamais joint** : le médecin l'ouvre via un lien à durée limitée protégé par un second facteur (date de naissance du patient ou code envoyé dans un e-mail séparé). L'administrateur peut activer la pièce jointe directe, avec avertissement.
 
 ### 2.5 Pingen (courrier postal)
 
@@ -153,8 +153,9 @@ Commencez **toujours par l'environnement de test (staging)** : aucun courrier n'
 6. Après la mise en ligne (étape 2.6), créez **4 webhooks** dans Pingen (*Organisation → Webhooks*), un par catégorie : `issues`, `sent`, `undeliverable`, `delivered`
    - URL commune : `https://VOTRE-DOMAINE/api/webhooks/pingen`
    - même clé de signature pour les 4, choisie par vous (20 à 32 caractères, par exemple `openssl rand -hex 16`) → **`PINGEN_WEBHOOK_SECRET`**.
-7. Faites un essai complet (voir 2.8) : le courrier apparaît dans Pingen staging, son statut remonte dans l'application.
-8. **Passage en réel** : créez le compte et l'organisation de production sur [identity.pingen.com](https://identity.pingen.com) (mêmes réglages : France), approvisionnez les crédits, créez un nouveau client API et les 4 webhooks, remplacez les 4 variables Pingen et mettez `PINGEN_ENV=production`.
+7. Lancez `npm run pingen:check` : chaque gabarit postal est déposé en staging, contrôlé par Pingen (zones, polices, code DMC en haut à droite) puis annulé.
+8. Faites un essai complet (voir 2.8) : le courrier apparaît dans Pingen staging, son statut remonte dans l'application.
+9. **Passage en réel** : créez le compte et l'organisation de production sur [identity.pingen.com](https://identity.pingen.com) (mêmes réglages : France), approvisionnez les crédits, créez un nouveau client API et les 4 webhooks, remplacez les 4 variables Pingen et mettez `PINGEN_ENV=production`.
 
 Garde-fou : `PINGEN_ENV=production` n'est pris en compte **que** sur le déploiement de production Vercel. Une copie de développement ou une préversion utilise toujours le staging.
 
@@ -232,7 +233,7 @@ Cette liste ne remplace pas l'avis de votre DPO ou de votre conseil.
 
 - **HDS.** Chaque prestataire qui stocke ou traite des données patients doit être certifié HDS : la base de données (MongoDB Atlas), le stockage des fichiers (AWS) **et** l'hébergement de l'application (Vercel exécute le code qui lit ces données). Vérifiez les certificats en vigueur auprès de chaque prestataire, pour les régions choisies. **Vercel ne figurait pas, à notre connaissance, parmi les hébergeurs certifiés HDS** : si c'est toujours le cas, il faudra déployer l'application chez un hébergeur certifié (l'application est une application Next.js standard, déployable sur tout hébergement Node.js ; voir [DECISIONS.md](DECISIONS.md)).
 - **Anthropic** : DPA signé et rétention zéro activée (étape 2.3).
-- **Resend, Pingen** : DPA signés ; Pingen imprime l'adresse et le courrier, Resend ne reçoit que l'objet, les initiales et le lien.
+- **Resend, Pingen** : DPA signés ; Pingen imprime l'adresse et le courrier, Resend ne reçoit que l'objet (type de document et identification minimale du patient) et le lien.
 - **RGPD** : inscription au registre des traitements, analyse d'impact (AIPD, obligatoire pour des données de santé à cette échelle), information des patients, durées de conservation (réglées dans l'application), procédure de violation de données.
 - **Accès** : 2FA obligatoire pour les administrateurs (imposée par l'application) ; recommandée pour tous.
 
@@ -278,7 +279,9 @@ Poussez sur la branche principale du dépôt : Vercel redéploie automatiquement
 | `npm run lint` · `npm run typecheck` | Qualité du code |
 | `npm run test` | Tests unitaires et d'intégration (Vitest, base MongoDB embarquée) |
 | `npm run test:e2e` | Build de production + tests de bout en bout Playwright en mode démo (parcours complets, droits, sécurité, accessibilité WCAG 2.2 AA, mobile) |
-| `npm run pdf:samples` | Génère des PDF d'exemple pour comparer aux modèles de [docs/modeles/](docs/modeles/) |
+| `npm run render:docs` | Génère tous les PDF (versions e-mail et postale, cas limites, version « debug » avec les zones Pingen) dans `/tmp/docs-preview`, en PNG à 150 dpi, et contrôle les zones Pingen ; `-- --previews` met à jour [docs/previews/](docs/previews/) |
+| `npm run render:emails` | Rend chaque e-mail (HTML + texte brut) et le capture à 600 px et 375 px, en clair et en sombre (`/tmp/emails-preview`) |
+| `npm run pingen:check` | Dépose chaque gabarit postal dans Pingen **staging**, vérifie qu'il passe la validation, puis l'annule (aucun envoi) |
 | `npm run ai:check` | Vérifie l'IA réelle sur les bilans fictifs (consomme quelques centimes) |
 | `npm run admin:create` · `npm run db:indexes` | Mise en production (voir 2.7) |
 

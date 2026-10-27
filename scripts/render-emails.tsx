@@ -5,7 +5,8 @@
  * Playwright à 600 px et 375 px, en clair et en sombre. Avec --previews, copie les
  * captures (600 px clair et 375 px sombre) dans docs/previews/.
  */
-import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import sharp from "sharp";
 import path from "node:path";
 import { chromium } from "@playwright/test";
 import { emailFixtures } from "@/server/emails/fixtures";
@@ -41,8 +42,10 @@ if (args.includes("--previews")) {
   const dest = path.resolve("docs/previews");
   mkdirSync(dest, { recursive: true });
   for (const f of readdirSync(dest)) if (f.startsWith("email-")) rmSync(path.join(dest, f));
-  for (const f of readdirSync(out))
-    if (/-(600-light|375-dark)\.png$/.test(f)) copyFileSync(path.join(out, f), path.join(dest, `email-${f}`));
+  for (const f of readdirSync(out)) {
+    if (!/-(600-light|375-dark)\.png$/.test(f)) continue;
+    await sharp(path.join(out, f)).png({ palette: true, compressionLevel: 9 }).toFile(path.join(dest, `email-${f}`));
+  }
   console.log(`Captures copiées dans ${dest}`);
 }
 console.log(`\n${out}`);
