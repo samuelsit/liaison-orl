@@ -109,9 +109,9 @@ Refonte de tous les documents et e-mails sortants : sobres, lisibles, paramétr�
 4. **IA et images** : la pseudonymisation porte sur les textes ; l'image d'un bilan peut montrer le nom du patient. Signer le DPA et activer la rétention zéro chez Anthropic avant les données réelles.
 5. **Dictée vocale** : assurée par le navigateur ; Chrome et Edge envoient l'audio à Google ou Microsoft. Réglage « Dictée vocale » dans Administration → Modèles pour la désactiver si nécessaire.
 6. **Accès réseau Atlas** : sans IP fixes côté Vercel, l'accès doit être ouvert à `0.0.0.0/0` (protégé par mot de passe et TLS) ; préférer l'option d'IP statiques de Vercel si l'offre la propose.
+7. La limitation de débit maison (lien sécurisé, IA) peut compter un ou deux appels de moins lors de la création simultanée d'une fenêtre ; sans conséquence pratique (le verrouillage du lien sécurisé, lui, est atomique).
 8. **Six tests E2E en échec, antérieurs à la refonte des documents** (mêmes échecs sur le commit 492f911, avant toute modification) : règle axe-core `label-content-name-mismatch` sur trois champs `.border-input` de l'accueil, de l'éditeur et de l'administration (4 tests d'accessibilité) ; commentaire IA non rédigé dans le délai de 20 s du parcours « compte rendu » ; délai dépassé sur le parcours mobile. Écrans non touchés par la refonte ; à corriger séparément.
 9. **Envoi de contrôle Pingen staging non réalisé** (aucun identifiant) : lancer `npm run pingen:check` pour confirmer la position du code DMC et la validation des gabarits par Pingen.
-7. La limitation de débit maison (lien sécurisé, IA) peut compter un ou deux appels de moins lors de la création simultanée d'une fenêtre ; sans conséquence pratique (le verrouillage du lien sécurisé, lui, est atomique).
 
 ## Hors périmètre V1 (prévu par le cahier des charges)
 
