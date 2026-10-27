@@ -8,7 +8,12 @@ import type { FontChoice } from "@/lib/schemas/organization";
 export type Weight = 400 | 500 | 600 | 700;
 
 const FILES: Record<FontChoice, Partial<Record<Weight, string>>> = {
-  Comfortaa: { 400: "Comfortaa-Regular.ttf", 500: "Comfortaa-Medium.ttf", 600: "Comfortaa-SemiBold.ttf", 700: "Comfortaa-Bold.ttf" },
+  Comfortaa: {
+    400: "Comfortaa-Regular.ttf",
+    500: "Comfortaa-Medium.ttf",
+    600: "Comfortaa-SemiBold.ttf",
+    700: "Comfortaa-Bold.ttf",
+  },
   Inter: { 400: "Inter-Regular.ttf", 500: "Inter-Medium.ttf", 600: "Inter-SemiBold.ttf", 700: "Inter-Bold.ttf" },
   Nunito: { 400: "Nunito-Regular.ttf", 700: "Nunito-Bold.ttf" },
   Montserrat: { 400: "Montserrat-Regular.ttf", 700: "Montserrat-Bold.ttf" },
@@ -25,17 +30,34 @@ function resolveWeight(family: FontChoice, weight: Weight): Weight {
 
 let registered = false;
 
-/** Enregistre les polices embarquées dans react-pdf (une seule fois). */
+/**
+ * Enregistre les polices embarquées dans react-pdf (une fois), puis force leur
+ * rechargement avant chaque document : react-pdf conserve sinon, d'un document à
+ * l'autre, un objet police dont l'état fait disparaître des glyphes (un « A » Medium
+ * manquait après un document contenant « À » dans la même graisse).
+ * `Font.reset()` ne convient pas : il vide les données sans permettre de les recharger.
+ */
 export function registerFonts() {
-  if (registered) return;
-  for (const [family, weights] of Object.entries(FILES) as [FontChoice, Partial<Record<Weight, string>>][]) {
-    Font.register({
-      family,
-      fonts: (Object.entries(weights) as [string, string][]).map(([w, file]) => ({ src: path.join(FONT_DIR, file), fontWeight: Number(w) })),
-    });
+  if (!registered) {
+    for (const [family, weights] of Object.entries(FILES) as [FontChoice, Partial<Record<Weight, string>>][]) {
+      Font.register({
+        family,
+        fonts: (Object.entries(weights) as [string, string][]).map(([w, file]) => ({
+          src: path.join(FONT_DIR, file),
+          fontWeight: Number(w),
+        })),
+      });
+    }
+    Font.registerHyphenationCallback((word) => [word]);
+    registered = true;
   }
-  Font.registerHyphenationCallback((word) => [word]);
-  registered = true;
+  const families = Font.getRegisteredFonts();
+  for (const family of Object.keys(FILES)) {
+    for (const source of families[family]?.sources ?? []) {
+      source.data = null;
+      source.loadResultPromise = null;
+    }
+  }
 }
 
 type FkFont = ReturnType<typeof fontkit.create> & {

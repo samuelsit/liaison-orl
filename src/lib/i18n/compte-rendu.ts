@@ -51,7 +51,7 @@ export const crFr = {
     remove: "Retirer le bilan",
     removeTitle: "Retirer le bilan ?",
     removeText:
-      "Les mesures et l'annexe audiométrique seront retirées du compte rendu. Le commentaire déjà rédigé est conservé.",
+      "Les mesures, l'audiogramme et le gain prothétique seront retirés du compte rendu. Le commentaire déjà rédigé est conservé.",
     removeConfirm: "Retirer",
     replaceTitle: "Remplacer le bilan ?",
     replaceText: "La nouvelle lecture remplacera les mesures déjà vérifiées ou corrigées.",

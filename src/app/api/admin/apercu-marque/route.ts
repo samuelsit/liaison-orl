@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getUserContextOrThrow } from "@/lib/auth/session";
 import { centreDisplayName } from "@/lib/brand";
+import { pdfBrand } from "@/server/services/pdf-model";
 import { brandSchema } from "@/lib/schemas/organization";
 import { renderPdf } from "@/lib/pdf/render";
 import { sampleModel } from "@/lib/pdf/sample";
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
   const { buffer } = await renderPdf(
     sampleModel(
       type,
-      { name: brand.name, slogan: brand.slogan, logo: brand.logo, colors: brand.colors, font: brand.fonts.document },
+      pdfBrand({ brand, legal: ctx.organization.legal }),
       { name: c.name, displayName: centreDisplayName(brand.name, c.name), address: c.address, phone: c.phone, email: c.email, senderAddress: c.senderAddress },
       ctx.organization.settings.documents.defaultSalutation,
       false,

@@ -13,7 +13,7 @@ export default async function AccountPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader title={fr.nav.account} description={fr.roles[user.role]} />
-      <AccountForms profile={{ firstName: user.firstName, lastName: user.lastName, title: user.title }} signature={doc?.signature ?? null} twoFactorEnabled={user.twoFactorEnabled} email={user.email} />
+      <AccountForms profile={{ firstName: user.firstName, lastName: user.lastName, title: user.title, rpps: doc?.rpps ?? "" }} signature={doc?.signature ?? null} twoFactorEnabled={user.twoFactorEnabled} email={user.email} />
     </div>
   );
 }

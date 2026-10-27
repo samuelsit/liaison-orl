@@ -15,7 +15,9 @@ import { isAddressComplete } from "@/lib/schemas/common";
 import type { Channel, DispatchEvent } from "@/lib/schemas/dispatch";
 import type { DeliveryProduct } from "@/lib/schemas/organization";
 import { ACCESS_MARKER, renderSubject, renderTemplate, type TemplateVars } from "@/lib/dispatch/template";
-import { formatRecipientAddress, isFrance } from "@/lib/postal/address";
+import { isFrance } from "@/lib/postal/address";
+import { postalAddress } from "@/lib/pdf/address";
+import { documentFont } from "@/lib/brand";
 import { renderPdf } from "@/lib/pdf/render";
 import { UserFacingError } from "@/server/actions/result";
 import { audit } from "@/server/audit";
@@ -160,10 +162,14 @@ export async function prepareDispatch(ctx: UserContext, documentId: string, post
         : null,
   };
   const formatted = l.prescriber
-    ? formatRecipientAddress({ civility: l.prescriber.civility, firstName: l.prescriber.firstName, lastName: l.prescriber.lastName, practiceName: l.prescriber.practiceName, address: l.prescriber.address })
+    ? postalAddress(
+        { civility: l.prescriber.civility, firstName: l.prescriber.firstName, lastName: l.prescriber.lastName, practiceName: l.prescriber.practiceName, address: l.prescriber.address },
+        documentFont(l.org.brand.fonts.document),
+      )
     : { lines: [], errors: ["Aucun prescripteur destinataire."], warnings: [] };
   const options = postalDefaults(ctx.organization, postalOverride);
-  const pages = (await countPdfPages(l.doc.pdfKey!)) + 1;
+  // La version postale a la même pagination que le document validé (adresse dans la fenêtre, sans page d'accompagnement).
+  const pages = await countPdfPages(l.doc.pdfKey!);
   let estimate: PostalPlan["estimate"] = null;
   if (formatted.errors.length === 0) {
     try {
@@ -375,7 +381,10 @@ async function sendEmail(l: Loaded, dispatch: DispatchDoc, copyToCentreOverride?
 async function sendPostal(l: Loaded, dispatch: DispatchDoc, override?: SendInput["postal"]) {
   const prescriber = l.prescriber;
   if (!prescriber) throw new UserFacingError("Aucun prescripteur destinataire.");
-  const formatted = formatRecipientAddress({ civility: prescriber.civility, firstName: prescriber.firstName, lastName: prescriber.lastName, practiceName: prescriber.practiceName, address: prescriber.address });
+  const formatted = postalAddress(
+    { civility: prescriber.civility, firstName: prescriber.firstName, lastName: prescriber.lastName, practiceName: prescriber.practiceName, address: prescriber.address },
+    documentFont(l.org.brand.fonts.document),
+  );
   if (formatted.errors.length) throw new UserFacingError(formatted.errors.join(" "));
   const options = postalDefaults(l.org, override);
   const { buffer } = await renderPdf(modelFromSnapshot(l.org, l.centre, l.doc, { prescriberAddress: prescriber.address }), "postal");

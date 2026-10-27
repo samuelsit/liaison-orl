@@ -147,13 +147,15 @@ export interface PreviewInput {
 }
 
 /** Rendu de l'aperçu à partir des valeurs en cours de saisie (non enregistrées). */
-export async function renderPreview(ctx: UserContext, id: string, input: PreviewInput) {
+export async function renderPreview(ctx: UserContext, id: string, input: PreviewInput, opts: { variant?: "standard" | "postal"; debugZones?: boolean } = {}) {
+  const variant = opts.variant ?? "standard";
+  const options = { debugZones: opts.debugZones ?? false };
   const doc = await getDocumentForUser(ctx, id);
   if (doc.status !== "BROUILLON" && doc.snapshot) {
     const centre = await collections().centres().findOne({ _id: doc.centreId });
     const { renderPdf } = await import("@/lib/pdf/render");
     const { modelFromSnapshot } = await import("./pdf-model");
-    return renderPdf(modelFromSnapshot(ctx.organization, centre!, doc));
+    return renderPdf(modelFromSnapshot(ctx.organization, centre!, doc), variant, options);
   }
   const parsed = dataSchemaFor(doc.type).safeParse(input.data);
   const data = (parsed.success ? parsed.data : doc.data) as DocumentData;
@@ -162,7 +164,7 @@ export async function renderPreview(ctx: UserContext, id: string, input: Preview
   if (e.patient) assertCentre(ctx.user, e.patient.centreId);
   const audiometry = doc.type === "COMPTE_RENDU" ? await confirmedAudiometry(data, doc._id) : null;
   const { renderPdf } = await import("@/lib/pdf/render");
-  return renderPdf(modelFromLive({ ...e, org: ctx.organization }, { type: doc.type, data }, { draft: true, audiometry }));
+  return renderPdf(modelFromLive({ ...e, org: ctx.organization }, { type: doc.type, data }, { draft: true, audiometry }), variant, options);
 }
 
 export async function validateDocument(ctx: UserContext, id: string) {

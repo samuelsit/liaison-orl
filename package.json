@@ -16,9 +16,11 @@
     "admin:create": "tsx --tsconfig tsconfig.scripts.json scripts/create-admin.ts",
     "db:indexes": "tsx --tsconfig tsconfig.scripts.json scripts/ensure-indexes.ts",
     "format": "prettier --write .",
-    "pdf:samples": "tsx --tsconfig tsconfig.scripts.json scripts/pdf-samples.tsx",
     "ai:check": "tsx --tsconfig tsconfig.scripts.json scripts/ai-check.ts",
-    "test:e2e:nobuild": "playwright test"
+    "test:e2e:nobuild": "playwright test",
+    "render:docs": "tsx --tsconfig tsconfig.scripts.json scripts/render-docs.tsx",
+    "render:emails": "tsx --tsconfig tsconfig.scripts.json scripts/render-emails.tsx",
+    "pingen:check": "tsx --tsconfig tsconfig.scripts.json scripts/pingen-staging-check.tsx"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

@@ -160,7 +160,7 @@ export function SettingsForm({ initial, section }: { initial: OrganizationSettin
               </FormField>
             </div>
             <Toggle id="signature" label="Imprimer la signature scannée de l'audioprothésiste" checked={s.documents.showSignature} onChange={(showSignature) => setS({ ...s, documents: { ...s.documents, showSignature } })} />
-            <Toggle id="annex" label="Annexe audiométrique proposée par défaut dans les comptes rendus" checked={s.documents.audiogramAnnex} onChange={(audiogramAnnex) => setS({ ...s, documents: { ...s.documents, audiogramAnnex } })} />
+            <Toggle id="annex" label="Audiogramme et gain prothétique inclus par défaut dans les comptes rendus" checked={s.documents.audiogramAnnex} onChange={(audiogramAnnex) => setS({ ...s, documents: { ...s.documents, audiogramAnnex } })} />
           </section>
         </>
       ) : (

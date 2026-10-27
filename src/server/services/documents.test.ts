@@ -80,7 +80,7 @@ describe("cycle de vie d'un document", () => {
     const doc = await createDocument(ctx, "COMPTE_RENDU", { patientId: patient.id });
     const { buffer, info } = await renderPreview(ctx, doc._id, { data: { ...doc.data, comments: "x ".repeat(900) }, patientId: patient.id, prescriberId: null });
     expect(buffer.length).toBeGreaterThan(1000);
-    expect(info.commentsCompressed || info.commentsOverflow).toBe(true);
+    expect(info.pages).toBeGreaterThanOrEqual(2);
     await deleteDocument(ctx, doc._id);
     expect(await collections().documents().findOne({ _id: doc._id })).toBeNull();
   });

@@ -60,7 +60,7 @@ export const compteRenduDataSchema = z.object({
   attachmentId: idSchema.nullable().default(null),
   /** Règle de calcul affichée pour le degré de surdité. */
   degreeRule: z.string().max(400).nullable().default(null),
-  /** Inclure l'annexe audiométrique (page 2). */
+  /** Inclure l'audiogramme redessiné et le gain prothétique dans le compte rendu. */
   includeAnnex: z.boolean().default(true),
 });
 export type CompteRenduData = z.infer<typeof compteRenduDataSchema>;
@@ -96,7 +96,7 @@ export const snapshotSchema = z.object({
       }),
     })
     .nullable(),
-  author: z.object({ firstName: z.string(), lastName: z.string(), title: z.string(), signature: z.string().nullable() }),
+  author: z.object({ firstName: z.string(), lastName: z.string(), title: z.string(), signature: z.string().nullable(), rpps: z.string().optional() }),
   centreId: idSchema,
   /** Mesures audiométriques confirmées au moment de la validation (compte rendu). */
   audiometry: z.unknown().nullable(),

@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Shortcut } from "@/components/ui/shortcut";
 import { DocumentStatusBadge } from "@/components/documents/status-badge";
-import { PdfPreview, type RenderInfo } from "@/components/documents/pdf-preview";
+import { PdfPreview } from "@/components/documents/pdf-preview";
 import { useAutosave, readBackup, clearBackup } from "@/hooks/use-autosave";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -73,7 +73,6 @@ export function DocumentEditor({
   const [prescriber, setPrescriberState] = useState<PrescriberView | null>(initialPrescriber);
   const [aiFields, setAiFields] = useState<string[]>(doc.aiFields);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [renderInfo, setRenderInfo] = useState<RenderInfo | null>(null);
   const [dialog, setDialog] = useState<null | { kind: "ai" | "warnings" | "reopen" | "delete"; warnings?: string[] }>(null);
   const [pending, startTransition] = useTransition();
   const readOnly = doc.status !== "BROUILLON";
@@ -113,12 +112,16 @@ export function DocumentEditor({
     const t = setTimeout(() => setPreviewBody(payload), 450);
     return () => clearTimeout(t);
   }, [payload]);
+  // ?debug=pingen : aperçu de la version postale avec les zones Pingen superposées.
+  const [pingenDebug] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "pingen");
   const previewRequest = useMemo(
     () =>
-      readOnly
-        ? { method: "GET" as const, url: `/api/documents/${doc.id}/pdf?v=${doc.version}` }
-        : { method: "POST" as const, url: `/api/documents/${doc.id}/apercu`, body: previewBody },
-    [readOnly, doc.id, doc.version, previewBody],
+      pingenDebug
+        ? { method: "POST" as const, url: `/api/documents/${doc.id}/apercu?variant=postal&debug=pingen`, body: previewBody }
+        : readOnly
+          ? { method: "GET" as const, url: `/api/documents/${doc.id}/pdf?v=${doc.version}` }
+          : { method: "POST" as const, url: `/api/documents/${doc.id}/apercu`, body: previewBody },
+    [pingenDebug, readOnly, doc.id, doc.version, previewBody],
   );
 
   const clearErrors = (keys: string[]) =>
@@ -199,14 +202,6 @@ export function DocumentEditor({
     [flush, readOnly, runValidate],
   );
 
-  const commentsWarning =
-    doc.type === "COMPTE_RENDU" && renderInfo && (renderInfo.commentsOverflow || renderInfo.commentsCompressed) ? (
-      <p className="flex items-start gap-2 text-xs text-warning-foreground">
-        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-        {renderInfo.commentsOverflow ? T.commentsOverflow : T.commentsCompressed}
-      </p>
-    ) : null;
-
   const form =
     doc.type === "ADRESSAGE" ? (
       <AdressageFields motifAssistant={!readOnly && shared.aiEnabled ? <MotifAssistant /> : null} />
@@ -214,14 +209,12 @@ export function DocumentEditor({
       <CompteRenduFields
         bilan={<BilanPanel attachments={attachments} />}
         commentAssistant={!readOnly && shared.aiEnabled ? <CommentAssistant attachments={attachments} /> : null}
-        previewWarning={commentsWarning}
       />
     );
 
   const preview = (
     <PdfPreview
       request={previewRequest}
-      onInfo={setRenderInfo}
       label={fr.documentTypes[doc.type]}
       downloadUrl={`/api/documents/${doc.id}/pdf?telecharger=1`}
     />

@@ -288,7 +288,7 @@ export const adminFr = {
       documentsTitle: "Options des documents",
       documentsDescription: "Éléments imprimés par défaut sur les courriers et comptes rendus.",
       showSignature: "Imprimer la signature scannée de l'audioprothésiste",
-      audiogramAnnex: "Proposer l'annexe audiométrique dans les comptes rendus",
+      audiogramAnnex: "Inclure l'audiogramme et le gain prothétique dans les comptes rendus",
     },
     dispatch: {
       emailTitle: "Envoi par e-mail",

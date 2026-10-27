@@ -23,10 +23,14 @@ export const userInviteSchema = z.object({
 });
 export type UserInvite = z.infer<typeof userInviteSchema>;
 
+/** Numéro RPPS : 11 chiffres (facultatif). */
+export const rppsSchema = z.union([z.string().trim().regex(/^\d{11}$/, "Le numéro RPPS comporte 11 chiffres"), z.literal("")]);
+
 export const userProfileUpdateSchema = z.object({
   firstName: z.string().trim().min(1).max(60),
   lastName: z.string().trim().min(1).max(60),
   title: z.string().trim().max(80),
+  rpps: rppsSchema.default(""),
 });
 
 /** Utilisateur tel que stocké (collection « user » gérée par Better Auth + champs métier). */
@@ -42,6 +46,8 @@ export interface AppUserDoc {
   firstName: string;
   lastName: string;
   title: string;
+  /** Numéro RPPS imprimé sous la signature (facultatif). */
+  rpps?: string;
   active: boolean;
   canSend: boolean;
   twoFactorEnabled?: boolean;

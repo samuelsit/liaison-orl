@@ -48,6 +48,8 @@ const schema = z.object({
   LOCAL_STORAGE_DIR: z.string().default(".data/storage"),
   CRON_SECRET: optional,
   DEMO_LOGIN_HINTS: optional,
+  /** 1 = l'aperçu des documents affiche la version postale avec les zones Pingen superposées. */
+  PDF_DEBUG_PINGEN: optional,
   DISABLE_RATE_LIMIT: optional,
 });
 

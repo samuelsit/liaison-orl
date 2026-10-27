@@ -4,6 +4,7 @@ import { getUserContextOrThrow } from "@/lib/auth/session";
 import { ForbiddenError } from "@/lib/auth/permissions";
 import { renderPreview } from "@/server/services/documents";
 import { UserFacingError } from "@/server/actions/result";
+import { env } from "@/lib/env";
 
 export const runtime = "nodejs";
 
@@ -19,7 +20,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const ctx = await getUserContextOrThrow();
     const { id } = await params;
     const body = bodySchema.parse(await request.json());
-    const { buffer, info } = await renderPreview(ctx, id, body);
+    const search = new URL(request.url).searchParams;
+    // Contrôle des zones Pingen : ?variant=postal&debug=pingen, ou PDF_DEBUG_PINGEN=1 (version postale superposée).
+    const debugZones = search.get("debug") === "pingen" || env().PDF_DEBUG_PINGEN === "1";
+    const variant = search.get("variant") === "postal" || debugZones ? "postal" : "standard";
+    const { buffer, info } = await renderPreview(ctx, id, body, { variant, debugZones });
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/pdf",

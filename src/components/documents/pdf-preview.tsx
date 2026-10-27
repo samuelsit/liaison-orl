@@ -8,9 +8,6 @@ import { Spinner } from "@/components/ui/spinner";
 
 export interface RenderInfo {
   pages: number;
-  commentsCompressed: boolean;
-  commentsOverflow: boolean;
-  motifCompressed: boolean;
 }
 
 type PdfJs = typeof import("pdfjs-dist");

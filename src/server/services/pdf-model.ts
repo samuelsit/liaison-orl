@@ -2,13 +2,24 @@ import "server-only";
 import { collections } from "@/lib/db/collections";
 import { getOrganization } from "@/server/repositories/organizations";
 import type { CentreDoc, DocumentDoc, OrganizationDoc, PatientDoc, PrescriberDoc, UserDoc } from "@/lib/db/types";
-import { centreDisplayName } from "@/lib/brand";
+import { centreDisplayName, documentFont } from "@/lib/brand";
 import { audiometrySchema, type Audiometry } from "@/lib/schemas/audiometry";
 import type { AdressageData, CompteRenduData, DocumentData, DocumentSnapshot } from "@/lib/schemas/document";
-import type { PdfModel, PdfPatient, PdfPrescriber } from "@/lib/pdf/model";
+import type { PdfBrand, PdfModel, PdfPatient, PdfPrescriber } from "@/lib/pdf/model";
 
-export function pdfBrand(org: OrganizationDoc) {
-  return { name: org.brand.name, slogan: org.brand.slogan, logo: org.brand.logo, colors: org.brand.colors, font: org.brand.fonts.document };
+export function pdfBrand(org: Pick<OrganizationDoc, "brand" | "legal">): PdfBrand {
+  return {
+    name: org.brand.name,
+    logo: org.brand.logo,
+    colors: org.brand.colors,
+    font: documentFont(org.brand.fonts.document),
+    legal: legalLine(org.legal),
+  };
+}
+
+/** Mentions légales du pied de page : raison sociale puis mentions, sur une ligne. */
+export function legalLine(legal: { companyName: string; mentions: string }): string {
+  return [legal.companyName, legal.mentions.replace(/\s*\n+\s*/g, " · ")].map((s) => s.trim()).filter(Boolean).join(" · ");
 }
 
 export function pdfCentre(org: OrganizationDoc, centre: CentreDoc) {
@@ -76,6 +87,7 @@ export function modelFromLive(
       lastName: e.author?.lastName ?? "",
       title: e.author?.title ?? "",
       signature: e.author?.signature ?? null,
+      rpps: e.author?.rpps ?? "",
     },
     patient: patientSnapshot(e.patient),
     prescriber: prescriberSnapshot(e.prescriber),
@@ -92,7 +104,13 @@ export function buildSnapshot(e: LiveEntities, audiometry: Audiometry | null): D
   return {
     patient: patientSnapshot(e.patient) ?? { civility: "", firstName: "", lastName: "", birthDate: "" },
     prescriber: prescriberSnapshot(e.prescriber),
-    author: { firstName: e.author?.firstName ?? "", lastName: e.author?.lastName ?? "", title: e.author?.title ?? "", signature: e.author?.signature ?? null },
+    author: {
+      firstName: e.author?.firstName ?? "",
+      lastName: e.author?.lastName ?? "",
+      title: e.author?.title ?? "",
+      signature: e.author?.signature ?? null,
+      rpps: e.author?.rpps ?? "",
+    },
     centreId: e.centre._id,
     audiometry,
   };

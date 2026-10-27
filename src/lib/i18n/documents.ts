@@ -31,8 +31,6 @@ export const docFr = {
     readOnly: "Ce document est validé : il n'est plus modifiable. Cliquez sur « Modifier » pour créer une nouvelle version.",
     tabsForm: "Formulaire",
     tabsPreview: "Aperçu",
-    commentsCompressed: "Le commentaire est long : il est écrit plus petit pour tenir dans le cadre.",
-    commentsOverflow: "Le commentaire dépasse le cadre : la suite est reportée sur une page complémentaire.",
   },
   sections: {
     recipient: "Patient et destinataire",
@@ -74,7 +72,7 @@ export const docFr = {
     handling: "Acquisition de la manipulation",
     comments: "Commentaire au prescripteur",
     commentsPlaceholder: "4 à 8 lignes : gain, intelligibilité, adaptation, observance, vigilance, suite prévue…",
-    includeAnnex: "Joindre l'annexe audiométrique (audiogramme redessiné et gain prothétique)",
+    includeAnnex: "Inclure l'audiogramme redessiné et le gain prothétique",
   },
   options: {
     degree: { legere: "Légère", moyenne: "Moyenne", severe: "Sévère", profonde: "Profonde" },

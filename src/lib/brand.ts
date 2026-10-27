@@ -1,4 +1,4 @@
-import type { Brand, BrandColors, OrganizationSettings } from "@/lib/schemas/organization";
+import { DOCUMENT_FONT_CHOICES, type Brand, type BrandColors, type DocumentFontChoice, type FontChoice, type OrganizationSettings } from "@/lib/schemas/organization";
 
 /**
  * Thème par défaut (cahier des charges §2.2). Ce ne sont que des valeurs
@@ -7,7 +7,7 @@ import type { Brand, BrandColors, OrganizationSettings } from "@/lib/schemas/org
 export const DEFAULT_COLORS: BrandColors = {
   primary: "#1F3F7A",
   accent: "#E8632B",
-  text: "#2C3340",
+  text: "#1A1F2B",
   muted: "#9AA4B2",
   surface: "#F4F6FA",
   border: "#4A6FAA",
@@ -15,7 +15,15 @@ export const DEFAULT_COLORS: BrandColors = {
   footerLine: "#88A8D2",
 };
 
-export const DEFAULT_FONTS: Brand["fonts"] = { heading: "Comfortaa", body: "Inter", document: "Comfortaa" };
+export const DEFAULT_FONTS: Brand["fonts"] = { heading: "Comfortaa", body: "Inter", document: "Inter" };
+
+/**
+ * Police réellement utilisée dans les documents envoyés : Comfortaa (police de titre
+ * de l'interface) n'est pas assez lisible en corps de texte, elle est remplacée par Inter.
+ */
+export function documentFont(font: FontChoice): DocumentFontChoice {
+  return (DOCUMENT_FONT_CHOICES as readonly string[]).includes(font) ? (font as DocumentFontChoice) : "Inter";
+}
 
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace("#", "");

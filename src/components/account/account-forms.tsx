@@ -16,7 +16,7 @@ import { fr } from "@/lib/i18n/fr";
 
 const noopSubscribe = () => () => {};
 
-export function AccountForms({ profile, signature, twoFactorEnabled, email }: { profile: { firstName: string; lastName: string; title: string }; signature: string | null; twoFactorEnabled: boolean; email: string }) {
+export function AccountForms({ profile, signature, twoFactorEnabled, email }: { profile: { firstName: string; lastName: string; title: string; rpps: string }; signature: string | null; twoFactorEnabled: boolean; email: string }) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   // Le thème vient du localStorage : inconnu au rendu serveur, on ne le sélectionne qu'après l'hydratation.
@@ -41,6 +41,9 @@ export function AccountForms({ profile, signature, twoFactorEnabled, email }: { 
         </div>
         <FormField id="title" label="Titre (imprimé sous votre nom)">
           <Input id="title" value={p.title} onChange={(e) => setP({ ...p, title: e.target.value })} />
+        </FormField>
+        <FormField id="rpps" label="Numéro RPPS (facultatif, imprimé sous votre signature)">
+          <Input id="rpps" value={p.rpps} inputMode="numeric" autoComplete="off" maxLength={11} onChange={(e) => setP({ ...p, rpps: e.target.value.replace(/\D/g, "") })} />
         </FormField>
         <Button
           disabled={pending}

@@ -4,6 +4,9 @@ import { hexColorSchema, idSchema, imageDataUrlSchema } from "./common";
 export const FONT_CHOICES = ["Comfortaa", "Inter", "Nunito", "Montserrat", "Lato"] as const;
 export const fontChoiceSchema = z.enum(FONT_CHOICES);
 export type FontChoice = z.infer<typeof fontChoiceSchema>;
+/** Polices proposées pour les documents envoyés (Comfortaa est réservée aux titres de l'interface). */
+export const DOCUMENT_FONT_CHOICES = ["Inter", "Lato", "Montserrat", "Nunito"] as const;
+export type DocumentFontChoice = (typeof DOCUMENT_FONT_CHOICES)[number];
 
 /** Palette complète des documents. Les teintes dérivées sont recalculables depuis primary/accent. */
 export const brandColorsSchema = z.object({
