@@ -153,6 +153,14 @@ export function accentForText(accent: string): string {
   return c;
 }
 
+/** Mentions légales des pieds de page (documents, e-mails) : raison sociale puis mentions, sur une ligne. */
+export function legalLine(legal: { companyName: string; mentions: string }): string {
+  return [legal.companyName, legal.mentions.replace(/\s*\n+\s*/g, " · ")]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(" · ");
+}
+
 /** Nom complet d'un centre : « Marque — Ville ». */
 export function centreDisplayName(brandName: string, centreName: string): string {
   return centreName ? `${brandName} — ${centreName}` : brandName;
@@ -172,11 +180,11 @@ export const DEFAULT_SALUTATIONS = [
   "Monsieur",
 ];
 
-export const DEFAULT_EMAIL_SUBJECT = "{{document.type}} — {{patient.initiales}}";
+export const DEFAULT_EMAIL_SUBJECT = "{{document.type}} — {{patient.civilite}} {{patient.nom_abrege}}";
 
 export const DEFAULT_EMAIL_BODY = `{{prescripteur.formule}},
 
-Veuillez trouver ci-joint le {{document.type_minuscule}} concernant {{patient.civilite}} {{patient.initiales}}.
+Je vous adresse le {{document.type_minuscule}} concernant {{patient.civilite}} {{patient.nom_abrege}}.
 
 {{acces}}
 

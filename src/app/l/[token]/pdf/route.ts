@@ -10,7 +10,8 @@ export const runtime = "nodejs";
 export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const link = await findLink(token);
-  if (!link || link.revoked || link.expiresAt < new Date()) return NextResponse.json({ error: "Lien invalide ou expiré" }, { status: 404 });
+  if (!link || link.revoked || link.expiresAt < new Date())
+    return NextResponse.json({ error: "Lien invalide ou expiré" }, { status: 404 });
   if (!verifyAccess(link._id, (await cookies()).get(await accessCookieName(link._id))?.value)) {
     return NextResponse.redirect(new URL(`/l/${token}`, request.url));
   }

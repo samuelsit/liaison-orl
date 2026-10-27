@@ -12,14 +12,19 @@ import { unlockSecureLinkAction, type UnlockState } from "@/server/actions/secur
 
 export function UnlockForm({ token, factor }: { token: string; factor: "birthdate" | "code" }) {
   const router = useRouter();
-  const [state, action, pending] = useActionState<UnlockState, FormData>(unlockSecureLinkAction.bind(null, token), { error: null, unlocked: false });
+  const [state, action, pending] = useActionState<UnlockState, FormData>(unlockSecureLinkAction.bind(null, token), {
+    error: null,
+    unlocked: false,
+  });
   useEffect(() => {
     if (state.unlocked) router.refresh();
   }, [state.unlocked, router]);
   return (
     <form action={action} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="valeur">{factor === "birthdate" ? "Date de naissance du patient" : "Code d'accès reçu par e-mail"}</Label>
+        <Label htmlFor="valeur">
+          {factor === "birthdate" ? "Date de naissance du patient" : "Code d'accès reçu par e-mail"}
+        </Label>
         <Input
           id="valeur"
           name="valeur"

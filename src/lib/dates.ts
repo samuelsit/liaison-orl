@@ -21,6 +21,11 @@ export function formatIsoDateLong(iso: string | null | undefined): string {
   return new Intl.DateTimeFormat("fr-FR", { timeZone: TZ, day: "numeric", month: "long", year: "numeric" }).format(d);
 }
 
+/** « 26 novembre 2026 » (« 1er » pour le premier du mois) à partir d'un instant. */
+export function formatLongDate(date: Date): string {
+  return new Intl.DateTimeFormat("fr-FR", { timeZone: TZ, day: "numeric", month: "long", year: "numeric" }).format(date).replace(/^1 /, "1er ");
+}
+
 export function formatDateTime(date: Date | string | null | undefined): string {
   if (!date) return "";
   const d = typeof date === "string" ? new Date(date) : date;

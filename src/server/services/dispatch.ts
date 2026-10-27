@@ -1,6 +1,5 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { createElement } from "react";
 import { MongoServerError } from "mongodb";
 import { appUrl } from "@/lib/env";
 import { collections } from "@/lib/db/collections";
@@ -8,8 +7,9 @@ import type { CentreDoc, DispatchDoc, DocumentDoc, OrganizationDoc, PrescriberDo
 import { assertCan } from "@/lib/auth/permissions";
 import type { UserContext } from "@/lib/auth/session";
 import { centreDisplayName } from "@/lib/brand";
-import { formatIsoDate } from "@/lib/dates";
+import { formatIsoDate, formatLongDate } from "@/lib/dates";
 import { fr } from "@/lib/i18n/fr";
+import { emailFr } from "@/lib/i18n/email";
 import { initials, formatPersonName } from "@/lib/text";
 import { isAddressComplete } from "@/lib/schemas/common";
 import type { Channel, DispatchEvent } from "@/lib/schemas/dispatch";
@@ -22,7 +22,7 @@ import { renderPdf } from "@/lib/pdf/render";
 import { UserFacingError } from "@/server/actions/result";
 import { audit } from "@/server/audit";
 import { emailBrand, renderEmail } from "@/server/emails/render";
-import { AccessCodeEmail, DocumentEmail } from "@/server/emails/document";
+import { accessCodeEmail, documentEmail } from "@/server/emails/document";
 import { emailProvider } from "./email";
 import { EmailSendError, emailErrorHint } from "./email/types";
 import { postalProvider, PostalError, type PostalOptions } from "./postal";
@@ -109,6 +109,7 @@ function templateVars(l: Loaded, access: string): TemplateVars {
     "patient.nom": p.lastName.toLocaleUpperCase("fr-FR"),
     "patient.prenom": p.firstName,
     "patient.initiales": initials(p.firstName, p.lastName),
+    "patient.nom_abrege": [p.firstName.trim() ? `${p.firstName.trim()[0]!.toUpperCase()}.` : "", p.lastName.trim().toLocaleUpperCase("fr-FR")].filter(Boolean).join(" "),
     "prescripteur.formule": salutation,
     "prescripteur.nom": s.prescriber ? `${s.prescriber.civility} ${formatPersonName(s.prescriber.firstName, s.prescriber.lastName)}` : "",
     "centre.nom": centreDisplayName(l.org.brand.name, l.centre.name),
@@ -319,6 +320,7 @@ async function sendEmail(l: Loaded, dispatch: DispatchDoc, copyToCentreOverride?
   if (!pdf) throw new UserFacingError("PDF du document introuvable : rouvrez puis validez à nouveau le document.");
   let link: string | null = null;
   let code: string | null = null;
+  let expiresOn = "";
   if (s.mode === "secure-link") {
     const created = await createSecureLink({
       organizationId: l.doc.organizationId,
@@ -331,17 +333,26 @@ async function sendEmail(l: Loaded, dispatch: DispatchDoc, copyToCentreOverride?
     });
     link = `${appUrl()}/l/${created.token}`;
     code = created.code;
+    expiresOn = formatLongDate(created.link.expiresAt);
     await collections().dispatches().updateOne({ _id: dispatch._id }, { $set: { secureLinkId: created.link._id } });
   }
-  const access = accessText(s.mode, s.secondFactor, s.linkValidityDays);
   const vars = templateVars(l, ACCESS_MARKER);
   const body = renderTemplate(s.bodyTemplate, vars);
   const [before, after = ""] = body.includes(ACCESS_MARKER) ? body.split(ACCESS_MARKER) : [body, ""];
   const subject = renderSubject(s.subjectTemplate, { ...vars, acces: "" });
   const centreName = centreDisplayName(l.org.brand.name, l.centre.name);
-  const brand = emailBrand(l.org, centreName);
+  const brand = emailBrand(l.org, { displayName: centreName, centre: l.centre });
   const { html, text } = await renderEmail(
-    createElement(DocumentEmail, { brand, before: before!.trim(), after: after.trim(), link, accessNote: access, preview: subject }),
+    documentEmail({
+      brand,
+      documentLabel: fr.documentTypes[l.doc.type],
+      patientLabel: `${vars["patient.civilite"]} ${vars["patient.nom_abrege"]}`.trim(),
+      before: before!.trim(),
+      after: after.trim(),
+      access: link
+        ? { mode: "secure-link", link, factor: s.secondFactor, expiresOn, centrePhone: l.centre.phone }
+        : { mode: "attachment" },
+    }),
   );
   const copy = copyToCentreOverride ?? s.copyToCentre;
   const sent = await emailProvider().send({
@@ -359,14 +370,14 @@ async function sendEmail(l: Loaded, dispatch: DispatchDoc, copyToCentreOverride?
     idempotencyKey: dispatch.idempotencyKey,
   });
   if (code) {
-    const codeMail = await renderEmail(createElement(AccessCodeEmail, { brand, code, validity: `${s.linkValidityDays} jours` }));
+    const codeMail = await renderEmail(accessCodeEmail({ brand, code, expiresOn, sender: centreName }));
     await emailProvider().send({
       kind: "access-code",
       organizationId: l.doc.organizationId,
       fromName: centreName,
       to: [to],
       replyTo: l.centre.email || null,
-      subject: "Code d'accès au document",
+      subject: emailFr.accessCode.title,
       html: codeMail.html,
       text: codeMail.text,
       idempotencyKey: `${dispatch.idempotencyKey}:code`,

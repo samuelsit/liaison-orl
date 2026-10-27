@@ -7,7 +7,21 @@ import { Document, Page, Path, Rect, Svg, Text, View, renderToBuffer } from "@re
 import sharp from "sharp";
 import { DEMO_MARKER } from "@/ai/mock";
 import { fromAudiometry } from "@/ai/extraction-schema";
-import { CHART_FREQS, CHART_MAJOR, DB_MAX, DB_MIN, earSeries, freeFieldSeries, freqLabel, markerPath, noResponseArrow, polyline, xForFreq, yForDb, type ChartSeries } from "@/lib/audiology/chart";
+import {
+  CHART_FREQS,
+  CHART_MAJOR,
+  DB_MAX,
+  DB_MIN,
+  earSeries,
+  freeFieldSeries,
+  freqLabel,
+  markerPath,
+  noResponseArrow,
+  polyline,
+  xForFreq,
+  yForDb,
+  type ChartSeries,
+} from "@/lib/audiology/chart";
 import { emptyAudiometry, type Audiometry, type Confidence, type Curve } from "@/lib/schemas/audiometry";
 import { registerFonts } from "@/lib/pdf/fonts";
 
@@ -23,7 +37,9 @@ function c(values: Record<string, number | "NR">, conf: Confidence = "high", low
   return Object.fromEntries(
     Object.entries(values).map(([f, v]) => [
       f,
-      v === "NR" ? { value: 120, confidence: conf, noResponse: true } : { value: v, confidence: low.includes(f) ? "low" : conf },
+      v === "NR"
+        ? { value: 120, confidence: conf, noResponse: true }
+        : { value: v, confidence: low.includes(f) ? "low" : conf },
     ]),
   );
 }
@@ -165,30 +181,80 @@ function PdfChart({ x, y, title, series }: { x: number; y: number; title: string
       <Svg width={w} height={h + 14} viewBox={`0 0 ${w} ${h + 14}`}>
         <Rect x={cx0} y={2} width={cw} height={h} fill="#ffffff" stroke="#64748b" strokeWidth={0.6} />
         {Array.from({ length: (DB_MAX - DB_MIN) / 10 + 1 }, (_, i) => DB_MIN + i * 10).map((db) => (
-          <Path key={db} d={`M ${cx0} ${yForDb(db, 2, h)} L ${cx0 + cw} ${yForDb(db, 2, h)}`} stroke="#cbd5e1" strokeWidth={0.4} />
+          <Path
+            key={db}
+            d={`M ${cx0} ${yForDb(db, 2, h)} L ${cx0 + cw} ${yForDb(db, 2, h)}`}
+            stroke="#cbd5e1"
+            strokeWidth={0.4}
+          />
         ))}
         {CHART_FREQS.map((f) => (
-          <Path key={f} d={`M ${xForFreq(Number(f), cx0, cw)} 2 L ${xForFreq(Number(f), cx0, cw)} ${h + 2}`} stroke="#cbd5e1" strokeWidth={0.4} />
+          <Path
+            key={f}
+            d={`M ${xForFreq(Number(f), cx0, cw)} 2 L ${xForFreq(Number(f), cx0, cw)} ${h + 2}`}
+            stroke="#cbd5e1"
+            strokeWidth={0.4}
+          />
         ))}
         {series.map((s) => (
           <Fragment key={s.key}>
-            <Path d={polyline(s, cx0, 2, cw, h)} fill="none" stroke={s.color} strokeWidth={1} strokeDasharray={s.dashed ? "3,2" : undefined} />
+            <Path
+              d={polyline(s, cx0, 2, cw, h)}
+              fill="none"
+              stroke={s.color}
+              strokeWidth={1}
+              strokeDasharray={s.dashed ? "3,2" : undefined}
+            />
             {s.points.map((p) => (
               <Fragment key={p.freq}>
-                <Path d={markerPath(s.marker, xForFreq(p.freq, cx0, cw), yForDb(p.db, 2, h), 3.3)} fill={s.marker === "O" ? "#ffffff" : "none"} stroke={s.color} strokeWidth={1.1} />
-                {p.noResponse ? <Path d={noResponseArrow(xForFreq(p.freq, cx0, cw), yForDb(p.db, 2, h), 3.3)} fill="none" stroke={s.color} strokeWidth={0.9} /> : null}
+                <Path
+                  d={markerPath(s.marker, xForFreq(p.freq, cx0, cw), yForDb(p.db, 2, h), 3.3)}
+                  fill={s.marker === "O" ? "#ffffff" : "none"}
+                  stroke={s.color}
+                  strokeWidth={1.1}
+                />
+                {p.noResponse ? (
+                  <Path
+                    d={noResponseArrow(xForFreq(p.freq, cx0, cw), yForDb(p.db, 2, h), 3.3)}
+                    fill="none"
+                    stroke={s.color}
+                    strokeWidth={0.9}
+                  />
+                ) : null}
               </Fragment>
             ))}
           </Fragment>
         ))}
       </Svg>
       {CHART_MAJOR.map((f) => (
-        <Text key={f} style={{ position: "absolute", left: xForFreq(Number(f), cx0, cw) - 12, top: h + 18, width: 24, textAlign: "center", fontSize: 6, color: "#475569" }}>
+        <Text
+          key={f}
+          style={{
+            position: "absolute",
+            left: xForFreq(Number(f), cx0, cw) - 12,
+            top: h + 18,
+            width: 24,
+            textAlign: "center",
+            fontSize: 6,
+            color: "#475569",
+          }}
+        >
           {freqLabel(f)}
         </Text>
       ))}
       {[0, 20, 40, 60, 80, 100].map((db) => (
-        <Text key={db} style={{ position: "absolute", left: 0, top: 12 + yForDb(db, 2, h) - 3, width: 22, textAlign: "right", fontSize: 6, color: "#475569" }}>
+        <Text
+          key={db}
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 12 + yForDb(db, 2, h) - 3,
+            width: 22,
+            textAlign: "right",
+            fontSize: 6,
+            color: "#475569",
+          }}
+        >
           {String(db)}
         </Text>
       ))}
@@ -212,11 +278,28 @@ function BilanPdf({ b }: { b: DemoBilan }) {
     ["CL sans appareil", a.freeField.unaided],
     ["CL avec appareils", a.freeField.aided],
   ];
-  const sp = (s: typeof a.right.speech) => [cell(s.srt ?? undefined), cell(s.maxScore ?? undefined), cell(s.maxScoreLevel ?? undefined)];
+  const sp = (s: typeof a.right.speech) => [
+    cell(s.srt ?? undefined),
+    cell(s.maxScore ?? undefined),
+    cell(s.maxScoreLevel ?? undefined),
+  ];
   return (
-    <Document title="Bilan audiométrique" keywords={markerFor(b)} creator="AudioSoft Démo (fictif)" producer="AudioSoft Démo (fictif)">
+    <Document
+      title="Bilan audiométrique"
+      keywords={markerFor(b)}
+      creator="AudioSoft Démo (fictif)"
+      producer="AudioSoft Démo (fictif)"
+    >
       <Page size="A4" style={{ fontFamily: "Inter", fontSize: 8.5, color: "#0f172a", padding: 32 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#0f766e", paddingBottom: 6 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            borderBottomWidth: 1,
+            borderBottomColor: "#0f766e",
+            paddingBottom: 6,
+          }}
+        >
           <View>
             <Text style={{ fontSize: 14, fontWeight: 700, color: "#0f766e" }}>BILAN AUDIOMÉTRIQUE</Text>
             <Text style={{ color: "#475569" }}>AudioSoft Démo — document fictif généré pour la démonstration</Text>
@@ -244,7 +327,10 @@ function BilanPdf({ b }: { b: DemoBilan }) {
             ))}
           </View>
           {rows.map(([label, curve]) => (
-            <View key={label} style={{ flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#cbd5e1", paddingVertical: 2 }}>
+            <View
+              key={label}
+              style={{ flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#cbd5e1", paddingVertical: 2 }}
+            >
               <Text style={{ width: 90, paddingLeft: 3 }}>{label}</Text>
               {freqs.map((f) => (
                 <Text key={f} style={{ width: 48, textAlign: "center" }}>
@@ -271,7 +357,10 @@ function BilanPdf({ b }: { b: DemoBilan }) {
               ["CL avec", a.freeField.speechAided],
             ] as const
           ).map(([label, s]) => (
-            <View key={label} style={{ flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#cbd5e1", paddingVertical: 2 }}>
+            <View
+              key={label}
+              style={{ flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#cbd5e1", paddingVertical: 2 }}
+            >
               <Text style={{ width: 88, paddingLeft: 3 }}>{label}</Text>
               {sp(s).map((v, i) => (
                 <Text key={i} style={{ width: 56, textAlign: "center" }}>
@@ -281,9 +370,13 @@ function BilanPdf({ b }: { b: DemoBilan }) {
             </View>
           ))}
           {a.noise ? (
-            <Text style={{ marginTop: 8 }}>{`${a.noise.testName} : RSB 50 % sans ${cell(a.noise.unaidedSnr ?? undefined)} dB / avec ${cell(a.noise.aidedSnr ?? undefined)} dB`}</Text>
+            <Text
+              style={{ marginTop: 8 }}
+            >{`${a.noise.testName} : RSB 50 % sans ${cell(a.noise.unaidedSnr ?? undefined)} dB / avec ${cell(a.noise.aidedSnr ?? undefined)} dB`}</Text>
           ) : null}
-          <Text style={{ marginTop: 10, color: "#475569" }}>Masquage controlatéral appliqué si nécessaire. Résultats non interprétés.</Text>
+          <Text style={{ marginTop: 10, color: "#475569" }}>
+            Masquage controlatéral appliqué si nécessaire. Résultats non interprétés.
+          </Text>
         </View>
         <Text style={{ position: "absolute", left: 32, bottom: 24, fontSize: 7, color: "#64748b" }}>
           Données entièrement fictives — LIAISON ORL, jeu de démonstration.
@@ -305,16 +398,21 @@ function svgChart(x: number, y: number, title: string, series: ChartSeries[]): s
   for (let db = DB_MIN; db <= DB_MAX; db += 10) {
     const yy = y + yForDb(db, 0, h);
     out += `<line x1="${x + cx0}" x2="${x + cx0 + cw}" y1="${yy}" y2="${yy}" stroke="#cbd5e1"/>`;
-    if (db % 20 === 0 && db < DB_MAX) out += `<text x="${x + cx0 - 8}" y="${yy + 6}" font-size="15" text-anchor="end" font-family="Arial" fill="#475569">${db}</text>`;
+    if (db % 20 === 0 && db < DB_MAX)
+      out += `<text x="${x + cx0 - 8}" y="${yy + 6}" font-size="15" text-anchor="end" font-family="Arial" fill="#475569">${db}</text>`;
   }
   for (const f of CHART_FREQS) {
     const xx = x + xForFreq(Number(f), cx0, cw);
     out += `<line x1="${xx}" x2="${xx}" y1="${y}" y2="${y + h}" stroke="#cbd5e1"/>`;
   }
-  for (const f of CHART_MAJOR) out += `<text x="${x + xForFreq(Number(f), cx0, cw)}" y="${y + h + 22}" font-size="15" text-anchor="middle" font-family="Arial" fill="#475569">${freqLabel(f)}</text>`;
+  for (const f of CHART_MAJOR)
+    out += `<text x="${x + xForFreq(Number(f), cx0, cw)}" y="${y + h + 22}" font-size="15" text-anchor="middle" font-family="Arial" fill="#475569">${freqLabel(f)}</text>`;
   for (const s of series) {
-    const pts = s.points.filter((p) => !p.noResponse).map((p) => `${x + xForFreq(p.freq, cx0, cw)},${y + yForDb(p.db, 0, h)}`);
-    if (pts.length) out += `<polyline points="${pts.join(" ")}" fill="none" stroke="${s.color}" stroke-width="2.5"${s.dashed ? ' stroke-dasharray="8 5"' : ""}/>`;
+    const pts = s.points
+      .filter((p) => !p.noResponse)
+      .map((p) => `${x + xForFreq(p.freq, cx0, cw)},${y + yForDb(p.db, 0, h)}`);
+    if (pts.length)
+      out += `<polyline points="${pts.join(" ")}" fill="none" stroke="${s.color}" stroke-width="2.5"${s.dashed ? ' stroke-dasharray="8 5"' : ""}/>`;
     for (const p of s.points) {
       out += `<path d="${markerPath(s.marker, x + xForFreq(p.freq, cx0, cw), y + yForDb(p.db, 0, h), 8)}" fill="${s.marker === "O" ? "#fff" : "none"}" stroke="${s.color}" stroke-width="2.8"/>`;
     }
@@ -337,7 +435,10 @@ async function bilanJpeg(b: DemoBilan): Promise<Buffer> {
     `CL avec : SRT ${cell(a.freeField.speechAided.srt ?? undefined)} dB — max ${cell(a.freeField.speechAided.maxScore ?? undefined)} %`,
     "Document fictif — démonstration",
   ];
-  lines.forEach((l, i) => (svg += `<text x="660" y="${760 + i * 40}" font-size="22" font-family="Arial" fill="#0f172a">${l}</text>`));
+  lines.forEach(
+    (l, i) =>
+      (svg += `<text x="660" y="${760 + i * 40}" font-size="22" font-family="Arial" fill="#0f172a">${l}</text>`),
+  );
   svg += "</svg>";
   return sharp(Buffer.from(svg))
     .rotate(-2.2, { background: "#d6d3cc" })
@@ -349,7 +450,9 @@ async function bilanJpeg(b: DemoBilan): Promise<Buffer> {
     .toBuffer();
 }
 
-export async function renderDemoBilan(b: DemoBilan): Promise<{ data: Buffer; mimeType: "application/pdf" | "image/jpeg" }> {
+export async function renderDemoBilan(
+  b: DemoBilan,
+): Promise<{ data: Buffer; mimeType: "application/pdf" | "image/jpeg" }> {
   if (b.format === "pdf") {
     registerFonts();
     return { data: await renderToBuffer(<BilanPdf b={b} />), mimeType: "application/pdf" };

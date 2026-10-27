@@ -60,7 +60,10 @@ export async function runSeed(opts: { force?: boolean } = {}): Promise<SeedSumma
       colors: { ...DEFAULT_COLORS },
       fonts: { ...DEFAULT_FONTS },
     },
-    legal: { companyName: "Harmonie Audition (démonstration)", mentions: "Données de démonstration — aucune donnée réelle." },
+    legal: {
+      companyName: "Harmonie Audition (démonstration)",
+      mentions: "Données de démonstration — aucune donnée réelle.",
+    },
     settings: defaultSettings(),
     demo: true,
     createdAt: now,

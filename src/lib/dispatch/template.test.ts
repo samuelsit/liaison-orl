@@ -10,8 +10,10 @@ describe("modèles d'e-mail", () => {
     expect(renderTemplate("concernant {{patient.initiales}}.", { "patient.initiales": "J. D." })).toBe("concernant J. D.");
     expect(renderTemplate("Suite...", {})).toBe("Suite...");
   });
-  it("produit un objet minimisé par défaut (initiales)", () => {
-    expect(renderSubject(DEFAULT_EMAIL_SUBJECT, { "document.type": "Compte rendu d'appareillage", "patient.initiales": "J. D." })).toBe("Compte rendu d'appareillage — J. D.");
+  it("produit un objet minimisé par défaut (initiale du prénom et nom, sans information médicale)", () => {
+    expect(
+      renderSubject(DEFAULT_EMAIL_SUBJECT, { "document.type": "Compte rendu d'appareillage", "patient.civilite": "Mme", "patient.nom_abrege": "J. DUPONT" }),
+    ).toBe("Compte rendu d'appareillage — Mme J. DUPONT");
   });
   it("rend le corps par défaut sans variables résiduelles", () => {
     const body = renderTemplate(DEFAULT_EMAIL_BODY, { "prescripteur.formule": "Cher Confrère", acces: "Lien", "audioprothesiste.nom": "Claire MOREL" });

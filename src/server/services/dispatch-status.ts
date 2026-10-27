@@ -22,7 +22,8 @@ export interface StatusUpdate {
 export async function applyDispatchUpdate(dispatchId: string, update: StatusUpdate): Promise<DispatchDoc | null> {
   const dispatch = await collections().dispatches().findOne({ _id: dispatchId });
   if (!dispatch) return null;
-  if (update.externalEventId && dispatch.events.some((e) => e.externalEventId === update.externalEventId)) return dispatch;
+  if (update.externalEventId && dispatch.events.some((e) => e.externalEventId === update.externalEventId))
+    return dispatch;
 
   const at = update.at ?? new Date();
   const event: DispatchEvent = {
@@ -36,14 +37,16 @@ export async function applyDispatchUpdate(dispatchId: string, update: StatusUpda
   const set: Partial<DispatchDoc> = { updatedAt: new Date() };
   if (nextStatusAllowed(dispatch.status, update.status)) {
     set.status = update.status;
-    if (update.status === "sent" || update.status === "posted" || update.status === "printing") set.sentAt = dispatch.sentAt ?? at;
+    if (update.status === "sent" || update.status === "posted" || update.status === "printing")
+      set.sentAt = dispatch.sentAt ?? at;
     if (update.status === "delivered") set.deliveredAt = dispatch.deliveredAt ?? at;
     if (update.status === "opened") {
       set.openedAt = dispatch.openedAt ?? at;
       set.deliveredAt = dispatch.deliveredAt ?? at;
     }
     if ((ERROR_STATUSES as readonly string[]).includes(update.status)) {
-      set.error = update.error ?? dispatch.error ?? { code: update.status, message: update.detail ?? "Échec de l'envoi", hint: "" };
+      set.error = update.error ??
+        dispatch.error ?? { code: update.status, message: update.detail ?? "Échec de l'envoi", hint: "" };
       set.acknowledged = false;
     } else if (update.status !== "cancelled") {
       set.error = null;
@@ -55,7 +58,16 @@ export async function applyDispatchUpdate(dispatchId: string, update: StatusUpda
     .dispatches()
     .updateOne({ _id: dispatch._id }, { $set: set, $push: { events: event } });
   await syncDocumentStatus(dispatch.documentId);
-  return { ...dispatch, ...set, events: [...dispatch.events, event] };
+  const updated = { ...dispatch, ...set, events: [...dispatch.events, event] };
+  // Échec signalé après coup (webhook, suivi) : l'auteur est prévenu par e-mail.
+  const isError = (s: DispatchStatus) => (ERROR_STATUSES as readonly string[]).includes(s);
+  if (update.source !== "app" && set.status && isError(set.status) && !isError(dispatch.status)) {
+    const { notifyDispatchError } = await import("./dispatch-notify");
+    await notifyDispatchError(updated).catch((err: unknown) =>
+      console.error("Notification d'échec d'envoi impossible", err),
+    );
+  }
+  return updated;
 }
 
 /** Recalcule le statut du document à partir de ses envois. */
@@ -67,7 +79,10 @@ export async function syncDocumentStatus(documentId: string) {
     .find({ documentId, documentVersion: doc.version, status: { $ne: "cancelled" } })
     .toArray();
   if (dispatches.length === 0) {
-    if (doc.status !== "VALIDE") await collections().documents().updateOne({ _id: doc._id }, { $set: { status: "VALIDE", lastError: null } });
+    if (doc.status !== "VALIDE")
+      await collections()
+        .documents()
+        .updateOne({ _id: doc._id }, { $set: { status: "VALIDE", lastError: null } });
     return;
   }
   const failing = dispatches.find((d) => (ERROR_STATUSES as readonly string[]).includes(d.status) && !d.acknowledged);
@@ -116,8 +131,10 @@ export async function refreshMockDispatches(organizationId?: string) {
         );
       }
     } else {
-      if (d.status === "sent" && since > 30 * SECOND) await applyDispatchUpdate(d._id, { status: "printing", type: "letter.printing", source: "mock" });
-      if (d.status === "printing" && since > 120 * SECOND) await applyDispatchUpdate(d._id, { status: "posted", type: "letter.sent", source: "mock" });
+      if (d.status === "sent" && since > 30 * SECOND)
+        await applyDispatchUpdate(d._id, { status: "printing", type: "letter.printing", source: "mock" });
+      if (d.status === "printing" && since > 120 * SECOND)
+        await applyDispatchUpdate(d._id, { status: "posted", type: "letter.sent", source: "mock" });
     }
   }
 }

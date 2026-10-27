@@ -39,10 +39,12 @@ describe("préparation de l'envoi", () => {
     const { ctx, doc } = await validatedDoc();
     const plan = await prepareDispatch(ctx, doc._id);
     expect(plan.defaultChannels).toEqual(["EMAIL", "COURRIER"]);
-    expect(plan.email.subject).toBe("Courrier d'adressage — R. M.");
-    expect(plan.email.bodyText).not.toMatch(/Martin/i);
+    expect(plan.email.subject).toBe("Courrier d'adressage — M. R. MARTIN");
+    // Identification minimale : initiale du prénom et nom, jamais le prénom complet ni la date de naissance.
+    expect(plan.email.bodyText).not.toMatch(/Robert|1941/);
     expect(plan.postal.addressLines.at(-1)).toBe("FRANCE");
-    expect(plan.postal.pages).toBe(2);
+    // Adresse dans la fenêtre de la page 1 : plus de page d'accompagnement.
+    expect(plan.postal.pages).toBe(1);
     expect(plan.postal.estimate?.cents).toBeGreaterThan(0);
   });
 
@@ -65,7 +67,7 @@ describe("envoi par e-mail et courrier (mode démo)", () => {
     expect(sent[1]!.costCents).toBeGreaterThan(0);
     expect((await getDocumentForUser(ctx, doc._id)).status).toBe("ENVOYE");
     const mail = await collections().outbox().findOne({ externalId: sent[0]!.externalId! });
-    expect(mail?.subject).toBe("Courrier d'adressage — R. M.");
+    expect(mail?.subject).toBe("Courrier d'adressage — M. R. MARTIN");
     expect(mail?.attachments).toEqual([]);
     const token = /\/l\/([A-Za-z0-9_-]+)/.exec(mail!.html)![1]!;
     expect((await verifySecondFactor(token, "02/11/1941")).ok).toBe(true);
@@ -85,6 +87,8 @@ describe("envoi par e-mail et courrier (mode démo)", () => {
     expect(d!.status).toBe("action_required");
     expect(d!.error?.hint).toMatch(/Corrigez l'adresse/);
     expect((await getDocumentForUser(ctx, doc._id)).status).toBe("ERREUR");
+    // Échec constaté pendant l'envoi : l'utilisateur le voit à l'écran, pas de notification par e-mail.
+    expect(await collections().outbox().countDocuments({ kind: "dispatch-error" })).toBe(0);
   });
 
   it("envoie un lot selon le canal préféré et explique les impossibilités", async () => {
@@ -110,6 +114,13 @@ describe("webhooks", () => {
     fresh = await collections().dispatches().findOne({ _id: d!._id });
     expect(fresh?.status).toBe("bounced");
     expect((await getDocumentForUser(ctx, doc._id)).status).toBe("ERREUR");
+    // Échec reçu après coup : l'auteur est prévenu une fois, sans information médicale.
+    await handleResendEvent({ type: "email.bounced", data: { email_id: "email_123", bounce: { message: "550" } } }, "msg_2");
+    const notices = await collections().outbox().find({ kind: "dispatch-error" }).toArray();
+    expect(notices).toHaveLength(1);
+    expect(notices[0]!.to).toEqual([ctx.user.email]);
+    expect(notices[0]!.subject).toBe("Échec d’envoi — Courrier d'adressage — M. R. M.");
+    expect(notices[0]!.text).not.toMatch(/Robert|1941/);
     expect(await handleResendEvent({ type: "email.delivered", data: { email_id: "inconnu" } }, "msg_3")).toBe("ignored");
   });
 

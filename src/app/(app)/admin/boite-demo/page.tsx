@@ -12,6 +12,7 @@ const KIND: Record<string, string> = {
   invitation: "Invitation",
   "magic-link": "Lien de connexion",
   "reset-password": "Mot de passe",
+  "dispatch-error": "Échec d'envoi",
   other: "Autre",
 };
 

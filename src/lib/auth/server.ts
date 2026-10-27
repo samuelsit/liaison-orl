@@ -1,6 +1,5 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { createElement } from "react";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
@@ -11,7 +10,8 @@ import { db } from "@/lib/db/client";
 import { collections } from "@/lib/db/collections";
 import { emailProvider } from "@/server/services/email";
 import { emailBrand, renderEmail } from "@/server/emails/render";
-import { InvitationEmail, MagicLinkEmail, ResetPasswordEmail } from "@/server/emails/system";
+import { invitationEmail, magicLinkEmail, resetPasswordEmail } from "@/server/emails/system";
+import { emailFr } from "@/lib/i18n/email";
 import { getDefaultOrganization, getOrganization } from "@/server/repositories/organizations";
 
 async function brandFor(email: string) {
@@ -59,21 +59,16 @@ function createAuth() {
       sendResetPassword: async ({ user, url }) => {
         const { org, user: doc } = await brandFor(user.email);
         const isInvitation = url.includes("bienvenue");
-        const element = isInvitation
-          ? createElement(InvitationEmail, {
-              brand: emailBrand(org),
-              url,
-              firstName: doc?.firstName ?? "",
-              inviter: "Votre administrateur",
-            })
-          : createElement(ResetPasswordEmail, { brand: emailBrand(org), url });
-        const { html, text } = await renderEmail(element);
+        const content = isInvitation
+          ? invitationEmail({ brand: emailBrand(org), url, firstName: doc?.firstName ?? "", inviter: "Votre administrateur" })
+          : resetPasswordEmail({ brand: emailBrand(org), url });
+        const { html, text } = await renderEmail(content);
         await emailProvider().send({
           kind: isInvitation ? "invitation" : "reset-password",
           organizationId: org?._id ?? null,
           fromName: org?.brand.name ?? "",
           to: [user.email],
-          subject: isInvitation ? "Activez votre compte" : "Réinitialisation de votre mot de passe",
+          subject: isInvitation ? emailFr.invitation.subject : emailFr.resetPassword.subject,
           html,
           text,
         });
@@ -125,13 +120,13 @@ function createAuth() {
         sendMagicLink: async ({ email, url }) => {
           const { org, user } = await brandFor(email);
           if (!user || user.active === false) return;
-          const { html, text } = await renderEmail(createElement(MagicLinkEmail, { brand: emailBrand(org), url }));
+          const { html, text } = await renderEmail(magicLinkEmail({ brand: emailBrand(org), url }));
           await emailProvider().send({
             kind: "magic-link",
             organizationId: org?._id ?? null,
             fromName: org?.brand.name ?? "",
             to: [email],
-            subject: "Votre lien de connexion",
+            subject: emailFr.magicLink.subject,
             html,
             text,
           });

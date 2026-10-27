@@ -29,12 +29,17 @@ export function PdfPreview({
   onInfo,
   downloadUrl,
   label,
+  toolbar = true,
+  errorText = "L'aperçu n'a pas pu être généré. Vos saisies sont enregistrées.",
 }: {
   /** Requête d'aperçu (méthode, URL, corps JSON). Toute modification relance le rendu. */
   request: { method: "GET" | "POST"; url: string; body?: string } | null;
   onInfo?: (info: RenderInfo | null) => void;
   downloadUrl?: string;
   label: string;
+  /** Barre « Aperçu exact du PDF / Ouvrir / Télécharger » au-dessus de l'aperçu. */
+  toolbar?: boolean;
+  errorText?: string;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -110,7 +115,7 @@ export function PdfPreview({
 
   return (
     <div className="relative">
-      <div className="mb-2 flex items-center justify-between gap-2">
+      <div className={toolbar ? "mb-2 flex items-center justify-between gap-2" : "sr-only"}>
         <span className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           Aperçu exact du PDF
           {state === "loading" ? <Spinner className="size-3.5" /> : null}
@@ -134,7 +139,7 @@ export function PdfPreview({
       </div>
       {state === "error" ? (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground" role="alert">
-          L&apos;aperçu n&apos;a pas pu être généré. Vos saisies sont enregistrées.
+          {errorText}
           <Button variant="outline" size="sm" onClick={() => setRetry((r) => r + 1)}>
             <RefreshCw aria-hidden /> Réessayer
           </Button>

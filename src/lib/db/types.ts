@@ -70,7 +70,7 @@ export interface SecureLinkDoc {
 export interface OutboxDoc {
   _id: string;
   organizationId: string | null;
-  kind: "magic-link" | "invitation" | "document" | "access-code" | "reset-password" | "other";
+  kind: "magic-link" | "invitation" | "document" | "access-code" | "reset-password" | "dispatch-error" | "other";
   from: string;
   to: string[];
   cc: string[];
