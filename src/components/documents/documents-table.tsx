@@ -22,7 +22,7 @@ import { bulkSendAction, previewBulkSendAction, type BulkPreviewItem } from "@/s
 import type { BulkResult } from "@/server/services/dispatch";
 import type { DocumentListItem } from "@/server/services/hydrate";
 import { activeSecondaryFilters, DocumentsToolbar, type DocumentFilterState, type DocumentStatusCounts } from "./document-search";
-import { DocumentRows, type DocumentViewer } from "./document-rows";
+import { DocumentRows, isBulkSendable, type DocumentViewer } from "./document-rows";
 
 /**
  * Colle la barre d'outils sous l'en-tête (≥ sm) et publie sa hauteur dans `--list-sticky-top`
@@ -69,7 +69,7 @@ export function DocumentsTable({
   const { create, pending: creating } = useCreateDocument();
   const D = dispFr.documents;
 
-  const sendable = useMemo(() => (viewer.canSend ? items.filter((i) => i.status === "VALIDE").map((i) => i.id) : []), [items, viewer.canSend]);
+  const sendable = useMemo(() => items.filter((i) => isBulkSendable(i, viewer)).map((i) => i.id), [items, viewer]);
   const [picked, setPicked] = useState<string[]>([]);
   // Une sélection ne survit pas à un document qui quitte la liste (filtre, envoi).
   const selected = picked.filter((id) => sendable.includes(id));

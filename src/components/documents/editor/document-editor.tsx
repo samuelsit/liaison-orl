@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, CloudOff, Loader2, Pencil, Send, ShieldCheck, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowLeft, CheckCircle2, CloudOff, Download, Loader2, Pencil, Send, ShieldCheck, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,11 +21,12 @@ import {
 import { Shortcut } from "@/components/ui/shortcut";
 import { DocumentStatusBadge } from "@/components/documents/status-badge";
 import { PdfPreview } from "@/components/documents/pdf-preview";
+import { PrintPdfButton, pdfUrls, startPrint } from "@/components/documents/print-pdf";
 import { useAutosave, readBackup, clearBackup } from "@/hooks/use-autosave";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { deleteDocumentAction, reopenDocumentAction, validateDocumentAction } from "@/server/actions/documents";
-import type { DocumentData, DocumentStatus, DocumentType } from "@/lib/schemas/document";
+import { isSendableType, type DocumentData, type DocumentStatus, type DocumentType } from "@/lib/schemas/document";
 import type { PatientView } from "@/server/services/patients";
 import type { PrescriberView } from "@/server/services/prescribers";
 import { formatRelative } from "@/lib/dates";
@@ -76,6 +77,10 @@ export function DocumentEditor({
   const [dialog, setDialog] = useState<null | { kind: "ai" | "warnings" | "reopen" | "delete"; warnings?: string[] }>(null);
   const [pending, startTransition] = useTransition();
   const readOnly = doc.status !== "BROUILLON";
+  // Le courrier d'adressage s'imprime ou se télécharge ; seul le compte rendu s'envoie.
+  const sendable = isSendableType(doc.type);
+  const canSend = sendable && permissions.canSend;
+  const pdf = pdfUrls(doc.id);
 
   const payloadObj = useMemo(() => ({ data, patientId: patient?.id ?? null, prescriberId: prescriber?.id ?? null, aiFields }), [data, patient, prescriber, aiFields]);
   const payload = useMemo(() => JSON.stringify(payloadObj), [payloadObj]);
@@ -112,8 +117,8 @@ export function DocumentEditor({
     const t = setTimeout(() => setPreviewBody(payload), 450);
     return () => clearTimeout(t);
   }, [payload]);
-  // ?debug=pingen : aperçu de la version postale avec les zones Pingen superposées.
-  const [pingenDebug] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "pingen");
+  // ?debug=pingen : aperçu de la version postale avec les zones Pingen superposées (compte rendu seulement).
+  const [pingenDebug] = useState(() => sendable && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "pingen");
   const previewRequest = useMemo(
     () =>
       pingenDebug
@@ -180,12 +185,16 @@ export function DocumentEditor({
         }
         clearBackup(doc.id);
         toast.success(T.validated(res.data.version), {
-          action: permissions.canSend ? { label: T.send, onClick: () => router.push(`/documents/${doc.id}/envoi`) } : undefined,
+          action: !sendable
+            ? { label: T.print, onClick: () => void startPrint(pdf.inline) }
+            : canSend
+              ? { label: T.send, onClick: () => router.push(`/documents/${doc.id}/envoi`) }
+              : undefined,
         });
         router.refresh();
       });
     },
-    [aiFields.length, doc.id, flush, permissions.canSend, permissions.canValidate, router],
+    [aiFields.length, canSend, doc.id, flush, pdf.inline, permissions.canValidate, router, sendable],
   );
 
   useHotkeys(
@@ -216,7 +225,7 @@ export function DocumentEditor({
     <PdfPreview
       request={previewRequest}
       label={fr.documentTypes[doc.type]}
-      downloadUrl={`/api/documents/${doc.id}/pdf?telecharger=1`}
+      downloadUrl={pdf.download}
     />
   );
 
@@ -246,7 +255,16 @@ export function DocumentEditor({
                       <Pencil aria-hidden /> {T.reopen}
                     </Button>
                   ) : null}
-                  {permissions.canSend ? (
+                  {!sendable ? (
+                    <>
+                      <Button variant="outline" asChild data-testid="download-pdf">
+                        <a href={pdf.download} download>
+                          <Download aria-hidden /> {T.download}
+                        </a>
+                      </Button>
+                      <PrintPdfButton url={pdf.inline} data-testid="print-pdf" />
+                    </>
+                  ) : canSend ? (
                     <Button asChild data-testid="prepare-send">
                       <Link href={`/documents/${doc.id}/envoi`}>
                         <Send aria-hidden /> {T.send}
@@ -270,7 +288,7 @@ export function DocumentEditor({
         {readOnly ? (
           <Alert className="mb-4">
             <CheckCircle2 aria-hidden />
-            <AlertDescription>{T.readOnly}</AlertDescription>
+            <AlertDescription>{sendable ? T.readOnly : T.readOnlyAdressage}</AlertDescription>
           </Alert>
         ) : null}
         {Object.keys(errors).length > 0 ? (
@@ -288,7 +306,7 @@ export function DocumentEditor({
         ) : null}
 
         {isMobile ? (
-          <Tabs defaultValue="form">
+          <Tabs defaultValue={readOnly && !sendable ? "preview" : "form"}>
             <TabsList className="mb-3 grid w-full grid-cols-2">
               <TabsTrigger value="form">
                 {T.tabsForm}

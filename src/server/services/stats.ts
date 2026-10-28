@@ -14,7 +14,8 @@ export interface StatsRow {
 
 export interface Stats {
   periodDays: number;
-  totals: { documents: number; sent: number; emails: number; letters: number; errors: number; errorRate: number; postalCostCents: number; aiCalls: number; aiCostMicroUsd: number; medianHoursToSend: number | null };
+  /** sent : comptes rendus envoyés ; printableAdressages : adressages validés (imprimés ou téléchargés, jamais envoyés). */
+  totals: { documents: number; sent: number; printableAdressages: number; emails: number; letters: number; errors: number; errorRate: number; postalCostCents: number; aiCalls: number; aiCostMicroUsd: number; medianHoursToSend: number | null };
   byCentre: (StatsRow & { postalCostCents: number; aiCalls: number; aiCostMicroUsd: number; errors: number })[];
   byAuthor: StatsRow[];
   byPrescriber: StatsRow[];
@@ -123,7 +124,8 @@ export async function computeStats(viewer: AdminViewer, periodDays: number): Pro
     periodDays,
     totals: {
       documents: docs.length,
-      sent: docs.filter((d) => d.status === "ENVOYE").length,
+      sent: docs.filter((d) => d.type === "COMPTE_RENDU" && d.status === "ENVOYE").length,
+      printableAdressages: docs.filter((d) => d.type === "ADRESSAGE" && d.status === "VALIDE").length,
       emails: dispatches.filter((d) => d.channel === "EMAIL").length,
       letters: dispatches.filter((d) => d.channel === "COURRIER").length,
       errors,

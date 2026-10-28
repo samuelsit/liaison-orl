@@ -3,7 +3,7 @@
 import { Fragment, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { ClipboardList, Download, FilePlus2, FileText, Loader2, Mail, Mailbox, Route, Send, Trash2, TriangleAlert } from "lucide-react";
+import { ClipboardList, Download, FilePlus2, FileText, Loader2, Mail, Mailbox, Printer, Route, Send, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DISPATCH_STATUS_TONE, DocumentStatusBadge } from "@/components/documents/status-badge";
+import { pdfUrls, startPrint } from "@/components/documents/print-pdf";
 import { ListRow, ListRowControl, ListRowGroup, ListRowIcon, ListRows } from "@/components/layout/list-row";
 import type { RowAction } from "@/components/layout/list-row-actions";
 import { groupByDate } from "@/components/dispatches/list-utils";
@@ -25,6 +26,7 @@ import { useCreateDocument } from "@/hooks/use-create-document";
 import { fr } from "@/lib/i18n/fr";
 import { dispFr } from "@/lib/i18n/dispatch";
 import type { Role } from "@/lib/schemas/common";
+import { isSendableType } from "@/lib/schemas/document";
 import { cn } from "@/lib/utils";
 import { deleteDocumentAction } from "@/server/actions/documents";
 import type { DocumentDispatchSummary, DocumentListItem } from "@/server/services/hydrate";
@@ -36,7 +38,12 @@ export interface DocumentViewer {
   canSend: boolean;
 }
 
-/** Sélection pour l'envoi groupé (documents validés uniquement). */
+/** Document proposé à l'envoi groupé : compte rendu validé, utilisateur autorisé à envoyer. */
+export function isBulkSendable(item: DocumentListItem, viewer: DocumentViewer): boolean {
+  return viewer.canSend && item.status === "VALIDE" && isSendableType(item.type);
+}
+
+/** Sélection pour l'envoi groupé (comptes rendus validés uniquement). */
 export interface DocumentSelection {
   selected: readonly string[];
   toggle: (id: string) => void;
@@ -100,10 +107,12 @@ function rowActions(
   const d = item.dispatches;
   const primary: RowAction[] = [];
   const more: RowAction[] = [];
-  if (item.status === "VALIDE" && viewer.canSend) primary.push({ label: T.prepareSend, icon: <Send />, href: `/documents/${item.id}/envoi` });
+  if (isBulkSendable(item, viewer)) primary.push({ label: T.prepareSend, icon: <Send />, href: `/documents/${item.id}/envoi` });
+  // Courrier d'adressage validé : il s'imprime ou se télécharge, il ne s'envoie pas.
+  if (!isSendableType(item.type) && item.status !== "BROUILLON") primary.push({ label: T.print, icon: <Printer />, onSelect: () => void startPrint(pdfUrls(item.id).inline) });
   if (item.status === "ERREUR" && (d?.errorId ?? d?.lastId)) primary.push({ label: T.fix, icon: <TriangleAlert />, href: `/envois/${d?.errorId ?? d?.lastId}` });
   if (item.status === "ENVOYE" && d?.lastId) primary.push({ label: T.track, icon: <Route />, href: `/envois/${d.lastId}` });
-  if (item.status !== "BROUILLON") primary.push({ label: T.downloadPdf, icon: <Download />, href: `/api/documents/${item.id}/pdf?telecharger=1`, download: true });
+  if (item.status !== "BROUILLON") primary.push({ label: T.downloadPdf, icon: <Download />, href: pdfUrls(item.id).download, download: true });
   if (item.patientId && item.status !== "BROUILLON") {
     const crFirst = item.type === "ADRESSAGE";
     const cr: RowAction = { label: T.newCompteRenduFor, icon: <FilePlus2 />, onSelect: () => handlers.createFor("COMPTE_RENDU", item) };
@@ -168,7 +177,7 @@ export function DocumentRows({
     const type = fr.documentTypesShort[item.type];
     const draft = item.status === "BROUILLON";
     const missingPrescriber = draft && !item.prescriberName ? <span className="text-warning-foreground">{dispFr.documents.noPrescriber}</span> : null;
-    const selectable = Boolean(selection) && viewer.canSend && item.status === "VALIDE";
+    const selectable = Boolean(selection) && isBulkSendable(item, viewer);
     const checked = selectable && selection!.selected.includes(item.id);
     const name = item.patientName ?? dispFr.documents.noPatient;
     const { primary, more } = rowActions(item, viewer, handlers);

@@ -63,7 +63,7 @@ import { fr } from "@/lib/i18n/fr";
 import { shellFr } from "@/lib/i18n/shell";
 import { normalizeSearch } from "@/lib/text";
 import { cn } from "@/lib/utils";
-import type { DocumentType } from "@/lib/schemas/document";
+import { isSendableType, type DocumentType } from "@/lib/schemas/document";
 
 const T = shellFr.palette;
 
@@ -415,7 +415,7 @@ export function CommandPaletteProvider({
                     <CommandGroup heading={T.documents}>
                       {documentHits.flatMap((h) => [
                         renderDocument(h, "document"),
-                        canSend && h.status === "VALIDE" ? (
+                        canSend && h.status === "VALIDE" && h.docType && isSendableType(h.docType) ? (
                           <CommandItem
                             key={`send-${h.id}`}
                             value={`send-${h.id}`}
@@ -423,7 +423,7 @@ export function CommandPaletteProvider({
                             className="pl-9 text-muted-foreground data-selected:text-foreground"
                           >
                             <Send aria-hidden />
-                            <span className="truncate">{T.prepareSend(h.patientName ?? fr.documentTypesShort[h.docType ?? "ADRESSAGE"])}</span>
+                            <span className="truncate">{T.prepareSend(h.patientName ?? fr.documentTypesShort.COMPTE_RENDU)}</span>
                           </CommandItem>
                         ) : null,
                       ])}

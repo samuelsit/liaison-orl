@@ -23,7 +23,8 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   const s = await computeStats(ctx.user, days);
   const tiles = [
     { label: "Documents créés", value: s.totals.documents.toLocaleString("fr-FR") },
-    { label: "Documents envoyés", value: s.totals.sent.toLocaleString("fr-FR") },
+    { label: "Comptes rendus envoyés", value: s.totals.sent.toLocaleString("fr-FR") },
+    { label: "Adressages validés (à imprimer)", value: s.totals.printableAdressages.toLocaleString("fr-FR") },
     { label: "Envois (e-mail / courrier)", value: `${s.totals.emails} / ${s.totals.letters}` },
     { label: "Taux d'erreur d'envoi", value: `${(s.totals.errorRate * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %` },
     { label: "Coût courrier", value: euros(s.totals.postalCostCents) },
@@ -45,7 +46,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         </Button>
       </div>
 
-      <dl className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <dl className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7">
         {tiles.map((t) => (
           <div key={t.label} className="rounded-xl border bg-card p-4">
             <dt className="text-xs text-muted-foreground">{t.label}</dt>

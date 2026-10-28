@@ -6,7 +6,7 @@ import { SegmentedControl, SegmentedControlItem } from "@/components/ui/segmente
 import { useUrlFilters, useUrlSearchQuery } from "@/hooks/use-url-filters";
 import { fr } from "@/lib/i18n/fr";
 import { dispFr } from "@/lib/i18n/dispatch";
-import { DOCUMENT_STATUSES, DOCUMENT_TYPES, type DocumentStatus, type DocumentType } from "@/lib/schemas/document";
+import { DOCUMENT_TYPES, statusesFor, type DocumentStatus, type DocumentType } from "@/lib/schemas/document";
 
 export interface DocumentFilterState {
   status: DocumentStatus | null;
@@ -80,7 +80,7 @@ export function DocumentsToolbar({
           <SegmentedControlItem value="all" count={counts.all}>
             {D.all}
           </SegmentedControlItem>
-          {DOCUMENT_STATUSES.map((s) => (
+          {statusesFor(filters.type).map((s) => (
             <SegmentedControlItem key={s} value={s} count={counts[s]}>
               {D.statuses[s]}
             </SegmentedControlItem>

@@ -136,7 +136,7 @@ export const shellFr = {
     toFinishEmptyTitle: "Tout est à jour",
     toFinishEmptyDescription: "Aucun brouillon en attente dans ce centre.",
     toSendEmptyTitle: "Rien à envoyer",
-    toSendEmptyDescription: "Les documents validés apparaîtront ici, prêts à partir.",
+    toSendEmptyDescription: "Les comptes rendus validés apparaîtront ici, prêts à partir.",
     seeDrafts: "Voir les brouillons",
     recentEmptyTitle: "Aucun envoi pour l'instant",
     recentEmptyDescription: "Vos e-mails et courriers envoyés apparaîtront ici avec leur suivi.",

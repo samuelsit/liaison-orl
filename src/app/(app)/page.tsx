@@ -31,9 +31,11 @@ export default async function HomePage() {
   const centreIds = [activeCentre._id];
   const scope = { organizationId: user.organizationId, centreId: activeCentre._id };
   const errorFilter = { ...scope, status: { $in: [...ERROR_STATUSES] }, acknowledged: { $ne: true } };
+  // « Prêts à envoyer » : comptes rendus validés (un adressage validé s'imprime, il ne s'envoie pas).
+  const toSend = { ...scope, status: "VALIDE" as const, type: "COMPTE_RENDU" as const };
   const [drafts, validated, recent, errors, draftCount, validCount, errorCount] = await Promise.all([
     listDocuments(user.organizationId, { centreIds, status: "BROUILLON" }, ROWS),
-    listDocuments(user.organizationId, { centreIds, status: "VALIDE" }, ROWS),
+    listDocuments(user.organizationId, { centreIds, status: "VALIDE", type: "COMPTE_RENDU" }, ROWS),
     collections()
       .dispatches()
       .find({ ...scope, status: { $nin: [...ERROR_STATUSES] } })
@@ -42,7 +44,7 @@ export default async function HomePage() {
       .toArray(),
     collections().dispatches().find(errorFilter).sort({ updatedAt: -1 }).limit(ROWS).toArray(),
     collections().documents().countDocuments({ ...scope, status: "BROUILLON" }),
-    collections().documents().countDocuments({ ...scope, status: "VALIDE" }),
+    collections().documents().countDocuments(toSend),
     collections().dispatches().countDocuments(errorFilter),
   ]);
   const [draftItems, validItems, recentItems, errorItems] = await Promise.all([
@@ -102,12 +104,12 @@ export default async function HomePage() {
           flush
           title={fr.home.toSend}
           icon={<SendHorizontal aria-hidden />}
-          href="/documents?statut=VALIDE"
+          href="/documents?statut=VALIDE&type=COMPTE_RENDU"
           count={validCount}
           action={
             canSend && validCount >= 2 ? (
               <Button asChild variant="ghost" size="sm" className="-mr-2 text-brand-fg">
-                <Link href="/documents?statut=VALIDE">
+                <Link href="/documents?statut=VALIDE&type=COMPTE_RENDU">
                   <Send aria-hidden /> {H.sendAll(validCount)}
                 </Link>
               </Button>

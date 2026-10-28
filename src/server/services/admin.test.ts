@@ -63,10 +63,13 @@ describe("statistiques et audit", () => {
   it("compte les documents par centre et par mois, et exporte en CSV", async () => {
     const { org, centres } = await createTestOrg();
     const ctx = await createTestContext(org, centres);
-    await createDocument(ctx, "ADRESSAGE");
+    const adr = await createDocument(ctx, "ADRESSAGE");
     await createDocument(ctx, "COMPTE_RENDU");
+    await collections().documents().updateOne({ _id: adr._id }, { $set: { status: "VALIDE" } });
     const s = await computeStats({ role: "admin", organizationId: org._id }, 30);
     expect(s.totals.documents).toBe(2);
+    // L'adressage validé est compté à part : il s'imprime, il n'est jamais « envoyé ».
+    expect(s.totals).toMatchObject({ sent: 0, printableAdressages: 1 });
     expect(s.byCentre[0]).toMatchObject({ total: 2, adressage: 1, compteRendu: 1 });
     expect(s.monthly.at(-1)).toMatchObject({ adressage: 1, compteRendu: 1 });
     expect(toCsv(["a", "b"], [["x;y", 1]])).toBe('﻿a;b\r\n"x;y";1\r\n');

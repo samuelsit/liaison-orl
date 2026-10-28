@@ -10,7 +10,7 @@ import { getUserContext } from "@/lib/auth/session";
 import { can } from "@/lib/auth/permissions";
 import { collections } from "@/lib/db/collections";
 import type { DocumentDoc } from "@/lib/db/types";
-import { DOCUMENT_STATUSES, DOCUMENT_TYPES, type DocumentStatus, type DocumentType } from "@/lib/schemas/document";
+import { DOCUMENT_STATUSES, DOCUMENT_TYPES, statusesFor, type DocumentStatus, type DocumentType } from "@/lib/schemas/document";
 import { prefixWordsRegex } from "@/lib/text";
 import { fr } from "@/lib/i18n/fr";
 import { hydrateDocuments } from "@/server/services/hydrate";
@@ -20,8 +20,9 @@ export const metadata: Metadata = { title: "Documents" };
 export default async function DocumentsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const ctx = await getUserContext();
   const sp = await searchParams;
-  const status = DOCUMENT_STATUSES.includes(sp.statut as DocumentStatus) ? (sp.statut as DocumentStatus) : null;
   const type = DOCUMENT_TYPES.includes(sp.type as DocumentType) ? (sp.type as DocumentType) : null;
+  // Un adressage n'est jamais envoyé : « Envoyés » / « Erreurs » ne s'appliquent pas à ce type.
+  const status = statusesFor(type).includes(sp.statut as DocumentStatus) ? (sp.statut as DocumentStatus) : null;
   const mine = sp.auteur === "moi";
   const allCentres = sp.centres === "tous" && ctx.centres.length > 1;
   const q = (sp.q ?? "").slice(0, 80);

@@ -25,9 +25,9 @@ describe("libellés sans « (s) »", () => {
     expect(dispFr.bulk.resultToast(1, 3)).toBe("1 document envoyé sur 3.");
   });
 
-  it("sélection des documents validés", () => {
-    expect(dispFr.documents.selectValidated(1)).toBe("Sélectionner le document validé");
-    expect(dispFr.documents.selectValidated(4)).toBe("Sélectionner les 4 validés");
+  it("sélection des comptes rendus validés (seuls envoyables)", () => {
+    expect(dispFr.documents.selectValidated(1)).toBe("Sélectionner le compte rendu validé");
+    expect(dispFr.documents.selectValidated(4)).toBe("Sélectionner les 4 comptes rendus validés");
   });
 
   it("pages du courrier", () => {
