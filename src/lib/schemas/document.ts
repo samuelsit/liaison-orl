@@ -9,6 +9,23 @@ export const DOCUMENT_STATUSES = ["BROUILLON", "VALIDE", "ENVOYE", "ERREUR"] as 
 export const documentStatusSchema = z.enum(DOCUMENT_STATUSES);
 export type DocumentStatus = z.infer<typeof documentStatusSchema>;
 
+/**
+ * Seul le compte rendu d'appareillage s'envoie (e-mail, courrier). Le courrier d'adressage
+ * s'imprime ou se télécharge : il passe de BROUILLON à VALIDÉ et n'est jamais ENVOYÉ.
+ */
+export const SENDABLE_DOCUMENT_TYPES = ["COMPTE_RENDU"] as const satisfies readonly DocumentType[];
+
+export function isSendableType(type: DocumentType): boolean {
+  return (SENDABLE_DOCUMENT_TYPES as readonly DocumentType[]).includes(type);
+}
+
+/** Statuts possibles d'un type de document (filtres, compteurs). */
+export function statusesFor(type: DocumentType | null): readonly DocumentStatus[] {
+  return type && !isSendableType(type) ? (["BROUILLON", "VALIDE"] as const) : DOCUMENT_STATUSES;
+}
+
+export const NOT_SENDABLE_MESSAGE = "Le courrier d'adressage ne s'envoie pas : imprimez-le ou téléchargez le PDF.";
+
 /* ---------- Courrier d'adressage (schéma v1) ---------- */
 
 export const adressageDataSchema = z.object({

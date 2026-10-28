@@ -12,6 +12,7 @@ import { fr } from "@/lib/i18n/fr";
 import { emailFr } from "@/lib/i18n/email";
 import { initials, formatPersonName } from "@/lib/text";
 import { isAddressComplete } from "@/lib/schemas/common";
+import { isSendableType, NOT_SENDABLE_MESSAGE } from "@/lib/schemas/document";
 import type { Channel, DispatchEvent } from "@/lib/schemas/dispatch";
 import type { DeliveryProduct } from "@/lib/schemas/organization";
 import { ACCESS_MARKER, renderSubject, renderTemplate, type TemplateVars } from "@/lib/dispatch/template";
@@ -80,6 +81,8 @@ interface Loaded {
 
 async function load(ctx: UserContext, documentId: string): Promise<Loaded> {
   const doc = await getDocumentForUser(ctx, documentId);
+  // Point de passage unique de la préparation, de l'envoi, du renvoi et de l'envoi groupé.
+  if (!isSendableType(doc.type)) throw new UserFacingError(NOT_SENDABLE_MESSAGE);
   if (doc.status === "BROUILLON" || !doc.snapshot || !doc.pdfKey) throw new UserFacingError("Validez le document avant de l'envoyer.");
   const [centre, prescriber] = await Promise.all([
     collections().centres().findOne({ _id: doc.centreId, organizationId: doc.organizationId }),
