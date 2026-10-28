@@ -127,7 +127,7 @@ export function UsersAdmin({ users, centres, currentUserId }: { users: UserRow[]
                 const payload = { email: draft.email, firstName: draft.firstName, lastName: draft.lastName, title: draft.title, role: draft.role, centreIds: draft.centreIds, canSend: draft.canSend };
                 start(async () => {
                   const res = draft.id ? await updateUserAction(draft.id, payload) : await inviteUserAction(payload);
-                  if (!res.ok) return void toast.error(res.error);
+                  if (!res.ok) return void toast.error(Object.values(res.fieldErrors ?? {})[0] ?? res.error);
                   toast.success(res.message ?? "Enregistré.");
                   setDraft(null);
                   router.refresh();

@@ -51,6 +51,15 @@ describe("administration", () => {
     expect((await listUsers(admin)).some((u) => u.email === "nouvelle@test.test")).toBe(true);
   });
 
+  it("invite un administrateur sans choisir de centre et le rattache à tous les centres", async () => {
+    const { org, centres } = await createTestOrg();
+    const admin = await createTestContext(org, centres, { role: "admin" });
+    const id = await inviteUser(admin, { email: "chef@test.test", firstName: "Camille", lastName: "Chef", role: "admin", centreIds: [] });
+    const user = await collections().users().findOne({ _id: id });
+    expect(user?.centreIds.sort()).toEqual(centres.map((c) => c._id).sort());
+    await expect(inviteUser(admin, { email: "sans@test.test", firstName: "S", lastName: "C", role: "audioprothesiste", centreIds: [] })).rejects.toThrow(/au moins un centre/);
+  });
+
   it("empêche un administrateur de se rétrograder ou de se désactiver", async () => {
     const { org, centres } = await createTestOrg();
     const admin = await createTestContext(org, centres, { role: "admin" });

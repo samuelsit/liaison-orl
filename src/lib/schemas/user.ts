@@ -18,9 +18,10 @@ export const userInviteSchema = z.object({
   lastName: z.string().trim().min(1, "Nom obligatoire").max(60),
   title: z.string().trim().max(80).default("Audioprothésiste D.E"),
   role: roleSchema,
-  centreIds: z.array(idSchema).min(1, "Rattachez au moins un centre"),
+  /** Ignoré pour un administrateur, rattaché d'office à tous les centres. */
+  centreIds: z.array(idSchema).default([]),
   canSend: z.boolean().default(false),
-});
+}).refine((u) => u.role === "admin" || u.centreIds.length > 0, { message: "Rattachez au moins un centre", path: ["centreIds"] });
 export type UserInvite = z.infer<typeof userInviteSchema>;
 
 /** Numéro RPPS : 11 chiffres (facultatif). */

@@ -128,7 +128,8 @@ async function sendInvitation(email: string) {
 export async function inviteUser(ctx: UserContext, raw: unknown) {
   assertAdmin(ctx);
   const input = userInviteSchema.parse(raw);
-  const centreIds = (await collections().centres().find({ organizationId: ctx.user.organizationId, _id: { $in: input.centreIds } }).toArray()).map((c) => c._id);
+  const centreFilter = input.role === "admin" ? {} : { _id: { $in: input.centreIds } };
+  const centreIds = (await collections().centres().find({ organizationId: ctx.user.organizationId, ...centreFilter }).toArray()).map((c) => c._id);
   if (centreIds.length === 0) throw new UserFacingError("Rattachez au moins un centre.");
   if (await collections().users().findOne({ email: input.email })) throw new UserFacingError("Un compte existe déjà avec cette adresse e-mail.");
   const id = await provisionUser({ ...input, organizationId: ctx.user.organizationId, centreIds });
