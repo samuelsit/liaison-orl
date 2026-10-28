@@ -34,15 +34,16 @@ export async function pickFromCombobox(page: Page, testId: string, query: string
   await page.getByRole("option", { name: option }).click();
 }
 
-/** Valide le document en acceptant la relecture des champs suggérés par l'IA si demandé. */
+/**
+ * Valide le document en acceptant la relecture des champs suggérés par l'IA si demandé.
+ * Un compte rendu validé propose l'envoi ; un adressage validé, l'impression.
+ */
 export async function validateDocument(page: Page) {
   await page.getByTestId("validate").click();
   const confirm = page.getByRole("button", { name: "J'ai relu, valider" });
-  await Promise.race([
-    confirm.waitFor({ state: "visible" }).then(() => confirm.click()),
-    page.getByTestId("prepare-send").waitFor({ state: "visible" }),
-  ]);
-  await expect(page.getByTestId("prepare-send")).toBeVisible();
+  const done = page.getByTestId("prepare-send").or(page.getByTestId("print-pdf"));
+  await Promise.race([confirm.waitFor({ state: "visible" }).then(() => confirm.click()), done.waitFor({ state: "visible" })]);
+  await expect(done).toBeVisible();
 }
 
 /** Sélectionne une option d'un groupe de choix (sans la désélectionner si elle est déjà active, ex. valeur mémorisée). */

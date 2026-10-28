@@ -1,11 +1,13 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { ACCOUNTS, login, pickFromCombobox, validateDocument } from "./helpers";
 
-test("adressage : création, motif reformulé par l'IA, validation, envoi e-mail et lien sécurisé", async ({ page, context }) => {
+test("adressage : saisie, motif reformulé par l'IA, validation, impression et téléchargement du PDF — jamais d'envoi", async ({ page }) => {
   await login(page, ACCOUNTS.audio);
 
   await page.getByTestId("new-adressage").click();
   await page.waitForURL(/\/documents\/[^/]+$/);
+  const documentPath = new URL(page.url()).pathname;
   await pickFromCombobox(page, "patient-combobox", "martin", /Robert MARTIN/);
   // Le prescripteur habituel du patient est proposé automatiquement.
   await expect(page.getByTestId("prescriber-combobox")).toContainText("LEFÈVRE", { ignoreCase: true });
@@ -20,38 +22,35 @@ test("adressage : création, motif reformulé par l'IA, validation, envoi e-mail
 
   await validateDocument(page);
   await expect(page.getByText("Document validé")).toBeVisible();
+  await expect(page.getByText(/imprimez-le ou téléchargez le PDF/)).toBeVisible();
+  // Le PDF validé est affiché, avec les deux actions et sans aucune action d'envoi.
+  await expect(page.getByTestId("pdf-preview").locator("canvas").first()).toBeVisible();
+  await expect(page.getByTestId("prepare-send")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Préparer l'envoi/ })).toHaveCount(0);
 
-  await page.getByTestId("prepare-send").click();
-  await page.waitForURL(/\/envoi$/);
-  await expect(page.getByTestId("channel-EMAIL")).toHaveAttribute("aria-checked", "true");
-  await page.getByTestId("send").click();
-  await expect(page.getByText("Envoi effectué")).toBeVisible({ timeout: 30_000 });
+  // Télécharger le PDF.
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("download-pdf").click()]);
+  expect(download.suggestedFilename()).toBe("courrier-adressage-v1.pdf");
+  expect(readFileSync(await download.path()).subarray(0, 5).toString()).toBe("%PDF-");
 
-  await page.getByRole("link", { name: "suivi" }).first().click();
-  await page.waitForURL(/\/envois\/[^/]+$/);
-  const mail = page.frameLocator("iframe[title=\"Aperçu de l'e-mail simulé\"]");
-  const href = await mail.getByRole("link", { name: "Consulter le document" }).getAttribute("href");
-  expect(href).toMatch(/\/l\/[\w-]+$/);
-  const linkPath = new URL(href!).pathname;
+  // Imprimer : le PDF exact est chargé dans un cadre de même origine dont on ouvre la boîte d'impression.
+  const pdfResponse = page.waitForResponse((r) => r.url().endsWith(`/api${documentPath}/pdf`) && r.request().method() === "GET");
+  await page.getByTestId("print-pdf").click();
+  const res = await pdfResponse;
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toContain("application/pdf");
+  await expect(page.locator("iframe[data-testid='print-frame']")).toHaveAttribute("src", /^blob:/);
 
-  // Côté médecin : lien sécurisé, second facteur = date de naissance du patient.
-  const doctor = await context.browser()!.newContext({ viewport: { width: 400, height: 800 } });
-  const p2 = await doctor.newPage();
-  await p2.goto(linkPath);
-  await expect(p2.getByText("MARTIN")).toHaveCount(0);
-  await p2.locator("#valeur").fill("01/01/1950");
-  await p2.getByRole("button", { name: "Accéder au document" }).click();
-  await expect(p2.getByRole("alert").first()).toContainText(/incorrect|essai/i);
-  await p2.locator("#valeur").fill("02/11/1941");
-  await p2.getByRole("button", { name: "Accéder au document" }).click();
-  await expect(p2.getByRole("link", { name: "Ouvrir le PDF" })).toBeVisible();
-  const pdf = await p2.request.get(`${linkPath}/pdf`);
-  expect(pdf.status()).toBe(200);
-  expect(pdf.headers()["content-type"]).toContain("application/pdf");
-  expect((await pdf.body()).subarray(0, 5).toString()).toBe("%PDF-");
-  await doctor.close();
+  // La page d'envoi est refusée : retour au document.
+  await page.goto(`${documentPath}/envoi`);
+  await page.waitForURL((url) => url.pathname === documentPath);
+  await expect(page.getByTestId("send")).toHaveCount(0);
 
-  // L'ouverture remonte dans le suivi.
-  await page.reload();
-  await expect(page.getByText(/Ouvert/).first()).toBeVisible();
+  // Liste filtrée sur l'adressage : ni « Envoyés » ni « Erreurs », aucune case d'envoi groupé.
+  await page.goto("/documents?type=ADRESSAGE");
+  const statuses = page.getByRole("radiogroup", { name: "Filtrer par statut" });
+  await expect(statuses.getByRole("radio", { name: /^Validés/ })).toBeVisible();
+  await expect(statuses.getByRole("radio", { name: /^Envoyés/ })).toHaveCount(0);
+  await expect(statuses.getByRole("radio", { name: /^Erreurs/ })).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: /Sélectionner/ })).toHaveCount(0);
 });

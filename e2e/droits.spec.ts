@@ -12,8 +12,8 @@ test.describe("Droits", () => {
     await expect(page.getByTestId("validate")).toHaveCount(0);
     await expect(page.getByText("Brouillon prêt pour validation par un audioprothésiste")).toBeVisible();
 
-    // Un document validé d'un autre utilisateur : pas de bouton d'envoi, page d'envoi refusée.
-    await page.goto("/documents?statut=VALIDE");
+    // Un compte rendu validé d'un autre utilisateur : pas de bouton d'envoi, page d'envoi refusée.
+    await page.goto("/documents?statut=VALIDE&type=COMPTE_RENDU");
     const firstDoc = page.locator("a[href^='/documents/']").filter({ hasNotText: "Nouveau" }).first();
     const href = await firstDoc.getAttribute("href");
     if (href) {

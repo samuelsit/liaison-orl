@@ -48,9 +48,12 @@ async function printInFrame(url: string): Promise<void> {
   Object.assign(frame.style, { position: "fixed", right: "0", bottom: "0", width: "1px", height: "1px", border: "0", opacity: "0", pointerEvents: "none" });
   current = { frame, blobUrl };
   await new Promise<void>((resolve, reject) => {
+    // Visionneuse PDF absente ou désactivée : le cadre ne se charge pas, on propose d'ouvrir le PDF.
+    const timeout = setTimeout(() => reject(new Error("print-timeout")), 15_000);
     frame.onload = () =>
       // Laisse la visionneuse PDF s'initialiser avant d'ouvrir la boîte d'impression.
       setTimeout(() => {
+        clearTimeout(timeout);
         try {
           frame.contentWindow?.focus();
           frame.contentWindow?.print();
