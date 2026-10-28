@@ -215,15 +215,14 @@ async function seedCompteRendu(s: SeedContext, spec: CrSpec) {
   return doc._id;
 }
 
+/** Courrier d'adressage : brouillon ou validé (il s'imprime ou se télécharge, il ne s'envoie jamais). */
 interface AdrSpec {
   author: string;
   centre: string;
   patient: string;
   data: Partial<AdressageData>;
   validate?: boolean;
-  send?: ("EMAIL" | "COURRIER")[];
   days: number;
-  final?: ["EMAIL" | "COURRIER", DispatchStatus][];
 }
 
 async function seedAdressage(s: SeedContext, spec: AdrSpec) {
@@ -235,10 +234,8 @@ async function seedAdressage(s: SeedContext, spec: AdrSpec) {
   if (spec.validate) {
     const v = await validateDocument(ctx, doc._id);
     if (!v.ok) throw new Error(`Seed : validation impossible (${JSON.stringify(v.errors)})`);
-    if (spec.send?.length) await sendDocument(ctx, doc._id, { channels: spec.send });
   }
   await backdate(doc._id, spec.days);
-  for (const [channel, status] of spec.final ?? []) await setFinalStatus(doc._id, channel, status);
   return doc._id;
 }
 
@@ -258,7 +255,10 @@ const DEVICE: Partial<CompteRenduData> = {
   handling: "oui",
 };
 
-/** Documents de démonstration à tous les statuts, avec bilans, envois et historique sur six mois. */
+/**
+ * Documents de démonstration à tous les statuts, avec bilans, envois et historique sur six mois.
+ * Les adressages sont brouillons ou validés ; envois et erreurs d'envoi ne concernent que les comptes rendus.
+ */
 export async function seedDocuments(s: SeedContext): Promise<{ bilansDir: string }> {
   process.env.LORL_MOCK_FAST = "1";
   const bilansDir = path.resolve("demo/bilans");
@@ -290,15 +290,14 @@ export async function seedDocuments(s: SeedContext): Promise<{ bilansDir: string
       ["COURRIER", "posted"],
     ],
   });
+  // Adressages validés : imprimés ou téléchargés, jamais envoyés.
   await seedAdressage(s, {
     author: claire,
     centre: "pierrefitte",
     patient: "Martin",
     data: { exams: { conduits: true, bilan: true, autre: false } },
     validate: true,
-    send: ["EMAIL"],
     days: 6,
-    final: [["EMAIL", "delivered"]],
   });
   await seedCompteRendu(s, {
     author: julien,
@@ -328,12 +327,8 @@ export async function seedDocuments(s: SeedContext): Promise<{ bilansDir: string
     patient: "Caron",
     data: { exams: { conduits: false, bilan: true, autre: false } },
     validate: true,
-    send: ["EMAIL"],
     days: 3,
-    final: [["EMAIL", "delivered"]],
   });
-
-  // Erreur d'envoi (e-mail rejeté)
   await seedAdressage(s, {
     author: karim,
     centre: "saint-ouen",
@@ -344,12 +339,36 @@ export async function seedDocuments(s: SeedContext): Promise<{ bilansDir: string
         "Suspicion de bouchon de cérumen à l'oreille gauche ; otalgie depuis une semaine. Merci de votre avis.",
     },
     validate: true,
+    days: 2,
+  });
+
+  // Erreur d'envoi (e-mail rejeté) : seul le compte rendu s'envoie.
+  await seedCompteRendu(s, {
+    author: karim,
+    centre: "saint-ouen",
+    patient: "Aubert",
+    data: {
+      ...DEVICE,
+      comments: "Appareillage bilatéral en cours d'adaptation ; port encore irrégulier. Contrôle prévu dans quinze jours.",
+    },
+    validate: true,
     send: ["EMAIL"],
     days: 2,
     final: [["EMAIL", "bounced"]],
   });
 
-  // Validés, prêts à envoyer (démonstration de l'envoi groupé)
+  // Validés : comptes rendus prêts à envoyer (démonstration de l'envoi groupé), adressages à imprimer.
+  await seedCompteRendu(s, {
+    author: claire,
+    centre: "pierrefitte",
+    patient: "Martin",
+    data: {
+      ...DEVICE,
+      comments: "Appareillage bien accepté, observance satisfaisante. Contrôle prévu à un mois.",
+    },
+    validate: true,
+    days: 1,
+  });
   await seedAdressage(s, {
     author: claire,
     centre: "pierrefitte",
@@ -496,12 +515,19 @@ export async function seedDocuments(s: SeedContext): Promise<{ bilansDir: string
           patient,
           data: { exams: { conduits: true, bilan: day % 2 === 0, autre: false } },
           validate: true,
-          send,
           days: Math.min(day, 175),
-          final,
         });
       }
     }
   }
+  await assertNoAdressageSent();
   return { bilansDir };
+}
+
+/** Invariant : un courrier d'adressage n'est jamais envoyé (ni ENVOYÉ, ni ERREUR, ni envoi rattaché). */
+async function assertNoAdressageSent() {
+  const adressages = await collections().documents().find({ type: "ADRESSAGE" }, { projection: { _id: 1, status: 1 } }).toArray();
+  const wrongStatus = adressages.filter((d) => d.status === "ENVOYE" || d.status === "ERREUR").length;
+  const linked = await collections().dispatches().countDocuments({ documentId: { $in: adressages.map((d) => d._id) } });
+  if (wrongStatus || linked) throw new Error(`Seed : ${wrongStatus} adressage(s) envoyé(s) ou en erreur, ${linked} envoi(s) rattaché(s).`);
 }
