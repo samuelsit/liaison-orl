@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { createTestContext, createTestOrg, setupTestDb } from "../../../tests/helpers";
 import { collections } from "@/lib/db/collections";
 import { defaultSettings } from "@/lib/brand";
-import { inviteUser, listUsers, saveCentre, setUserActive, updateOrganization, updateSettings, updateUser } from "./admin";
+import { inviteUser, listUsers, saveCentre, setTwoFactorExempt, setUserActive, updateOrganization, updateSettings, updateUser } from "./admin";
+import { db } from "@/lib/db/client";
 import { computeStats, toCsv } from "./stats";
 import { queryAudit } from "./audit-query";
 import { createDocument } from "./documents";
@@ -65,6 +66,35 @@ describe("administration", () => {
     const admin = await createTestContext(org, centres, { role: "admin" });
     await expect(updateUser(admin, admin.user.id, { firstName: "A", lastName: "B", title: "", role: "assistant", centreIds: [centres[0]!._id], canSend: false })).rejects.toThrow(/propre rôle/);
     await expect(setUserActive(admin, admin.user.id, false)).rejects.toThrow(/propre compte/);
+  });
+
+  it("désactive la 2FA d'un utilisateur, l'en dispense puis l'exige à nouveau", async () => {
+    const { org, centres } = await createTestOrg();
+    const admin = await createTestContext(org, centres, { role: "admin" });
+    const other = await createTestContext(org, centres, { role: "admin" });
+    const audio = await createTestContext(org, centres);
+    await db().collection("twoFactor").insertOne({ userId: other.user.id, secret: "s", backupCodes: "b" });
+
+    await expect(setTwoFactorExempt(audio, other.user.id, true)).rejects.toThrow(/administrateurs/);
+    await expect(setTwoFactorExempt(admin, admin.user.id, true)).rejects.toThrow(/propre double authentification/);
+
+    await setTwoFactorExempt(admin, other.user.id, true);
+    expect(await collections().users().findOne({ _id: other.user.id })).toMatchObject({ twoFactorEnabled: false, twoFactorExempt: true });
+    expect(await db().collection("twoFactor").countDocuments({ userId: other.user.id })).toBe(0);
+    expect((await listUsers(admin)).find((u) => u.id === other.user.id)).toMatchObject({ twoFactorEnabled: false, twoFactorExempt: true });
+    expect(await collections().auditLogs().findOne({ entityId: other.user.id, action: "user.2fa_disabled" })).toBeTruthy();
+
+    await setTwoFactorExempt(admin, other.user.id, false);
+    expect((await collections().users().findOne({ _id: other.user.id }))?.twoFactorExempt).toBe(false);
+  });
+
+  it("rétablit la 2FA obligatoire quand un utilisateur dispensé devient administrateur", async () => {
+    const { org, centres } = await createTestOrg();
+    const admin = await createTestContext(org, centres, { role: "admin" });
+    const audio = await createTestContext(org, centres);
+    await setTwoFactorExempt(admin, audio.user.id, true);
+    await updateUser(admin, audio.user.id, { firstName: "A", lastName: "B", title: "", role: "admin", centreIds: [], canSend: false });
+    expect((await collections().users().findOne({ _id: audio.user.id }))?.twoFactorExempt).toBe(false);
   });
 });
 

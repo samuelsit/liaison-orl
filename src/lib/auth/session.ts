@@ -25,6 +25,8 @@ export interface SessionUser {
   centreIds: string[];
   canSend: boolean;
   twoFactorEnabled: boolean;
+  /** 2FA obligatoire : administrateur non dispensé. */
+  twoFactorRequired: boolean;
   hasSignature: boolean;
 }
 
@@ -46,16 +48,17 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
     centreIds: u.centreIds ?? [],
     canSend: Boolean(u.canSend),
     twoFactorEnabled: Boolean(u.twoFactorEnabled),
+    twoFactorRequired: u.role === "admin" && !u.twoFactorExempt,
     hasSignature: Boolean(u.signature),
   };
 });
 
-/** Exige un utilisateur connecté ; impose la configuration 2FA aux administrateurs. */
+/** Exige un utilisateur connecté ; impose la configuration 2FA aux administrateurs non dispensés. */
 export async function requireUser(opts: { allowPending2fa?: boolean } = {}): Promise<SessionUser> {
   const user = await getSessionUser();
   // Connexion puis retour à la page demandée (chemin relatif vérifié par loginHref).
   if (!user) redirect(loginHref((await headers()).get(REQUEST_PATH_HEADER)));
-  if (user.role === "admin" && !user.twoFactorEnabled && !opts.allowPending2fa) redirect("/securite/2fa");
+  if (user.twoFactorRequired && !user.twoFactorEnabled && !opts.allowPending2fa) redirect("/securite/2fa");
   return user;
 }
 
@@ -69,7 +72,7 @@ export async function requireAdmin(): Promise<SessionUser> {
 export async function requireUserOrThrow(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) throw new ForbiddenError("Votre session a expiré. Reconnectez-vous.");
-  if (user.role === "admin" && !user.twoFactorEnabled) {
+  if (user.twoFactorRequired && !user.twoFactorEnabled) {
     throw new ForbiddenError("Activez la double authentification pour continuer.");
   }
   return user;

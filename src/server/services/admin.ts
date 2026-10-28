@@ -93,6 +93,7 @@ export interface UserRow {
   active: boolean;
   canSend: boolean;
   twoFactorEnabled: boolean;
+  twoFactorExempt: boolean;
   hasSignature: boolean;
   lastLogin: string | null;
 }
@@ -116,6 +117,7 @@ export async function listUsers(ctx: UserContext): Promise<UserRow[]> {
     active: u.active !== false,
     canSend: Boolean(u.canSend),
     twoFactorEnabled: Boolean(u.twoFactorEnabled),
+    twoFactorExempt: Boolean(u.twoFactorExempt),
     hasSignature: Boolean(u.signature),
     lastLogin: last.get(u._id)?.toISOString() ?? null,
   }));
@@ -162,9 +164,14 @@ export async function updateUser(ctx: UserContext, userId: string, raw: unknown)
   if (u._id === ctx.user.id && input.role !== "admin") throw new UserFacingError("Vous ne pouvez pas retirer votre propre rôle d'administrateur.");
   const centreIds = (await collections().centres().find({ organizationId: ctx.user.organizationId, _id: { $in: input.centreIds } }).toArray()).map((c) => c._id);
   if (input.role !== "admin" && centreIds.length === 0) throw new UserFacingError("Rattachez au moins un centre.");
+  // Une promotion au rôle d'administrateur rétablit la 2FA obligatoire.
+  const promoted = u.role !== "admin" && input.role === "admin";
   await collections()
     .users()
-    .updateOne({ _id: userId }, { $set: { ...input, centreIds, name: formatPersonName(input.firstName, input.lastName), updatedAt: new Date() } });
+    .updateOne(
+      { _id: userId },
+      { $set: { ...input, centreIds, name: formatPersonName(input.firstName, input.lastName), updatedAt: new Date(), ...(promoted ? { twoFactorExempt: false } : {}) } },
+    );
   await audit(actor(ctx), "user.update", "user", userId, { role: input.role });
 }
 
@@ -186,4 +193,20 @@ export async function resetTwoFactor(ctx: UserContext, userId: string) {
   await collections().users().updateOne({ _id: userId }, { $set: { twoFactorEnabled: false } });
   await db().collection("session").deleteMany({ userId });
   await audit(actor(ctx), "user.update", "user", userId, { twoFactorReset: true });
+}
+
+/**
+ * Désactive la double authentification d'un utilisateur (secret TOTP et codes de secours supprimés)
+ * et le dispense de la 2FA obligatoire des administrateurs ; `exempt = false` l'exige à nouveau.
+ */
+export async function setTwoFactorExempt(ctx: UserContext, userId: string, exempt: boolean) {
+  assertAdmin(ctx);
+  if (userId === ctx.user.id) throw new UserFacingError("Vous ne pouvez pas modifier votre propre double authentification depuis cet écran.");
+  const u = await collections().users().findOne({ _id: userId, organizationId: ctx.user.organizationId });
+  if (!u) throw new UserFacingError("Utilisateur introuvable.");
+  if (exempt) await db().collection("twoFactor").deleteMany({ userId });
+  await collections()
+    .users()
+    .updateOne({ _id: userId }, { $set: { twoFactorExempt: exempt, ...(exempt ? { twoFactorEnabled: false } : {}), updatedAt: new Date() } });
+  await audit(actor(ctx), exempt ? "user.2fa_disabled" : "user.2fa_required", "user", userId);
 }

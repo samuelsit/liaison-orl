@@ -11,5 +11,5 @@ export default async function Setup2faPage() {
   const user = await requireUser({ allowPending2fa: true });
   if (user.twoFactorEnabled) redirect("/");
   const org = await getOrganization(user.organizationId);
-  return <TwoFactorSetup issuer={org?.brand.name ?? fr.app.productName} mandatory={user.role === "admin"} />;
+  return <TwoFactorSetup issuer={org?.brand.name ?? fr.app.productName} mandatory={user.twoFactorRequired} />;
 }

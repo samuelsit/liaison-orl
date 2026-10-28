@@ -40,6 +40,8 @@ export type AuditAction =
   | "user.update"
   | "user.deactivate"
   | "user.reactivate"
+  | "user.2fa_disabled"
+  | "user.2fa_required"
   | "user.profile"
   | "centre.create"
   | "centre.update"

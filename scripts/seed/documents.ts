@@ -46,6 +46,7 @@ async function contextFor(s: SeedContext, email: string, centreKey: string): Pro
       centreIds: u.centreIds,
       canSend: u.canSend,
       twoFactorEnabled: Boolean(u.twoFactorEnabled),
+      twoFactorRequired: u.role === "admin" && !u.twoFactorExempt,
       hasSignature: Boolean(u.signature),
     },
     organization: s.org,

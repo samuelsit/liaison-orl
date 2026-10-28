@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Mail, Pencil, ShieldCheck, ShieldOff, UserPlus, UserRoundX, UserRoundCheck } from "lucide-react";
+import { KeyRound, Mail, Pencil, RotateCcw, ShieldAlert, ShieldCheck, ShieldOff, UserPlus, UserRoundX, UserRoundCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { FormField } from "@/components/forms/form-field";
-import { inviteUserAction, resendInvitationAction, resetTwoFactorAction, setUserActiveAction, updateUserAction } from "@/server/actions/admin";
+import { inviteUserAction, resendInvitationAction, resetTwoFactorAction, setTwoFactorExemptAction, setUserActiveAction, updateUserAction } from "@/server/actions/admin";
 import type { UserRow } from "@/server/services/admin";
 import type { Role } from "@/lib/schemas/common";
 import { formatDateTime } from "@/lib/dates";
@@ -33,6 +33,7 @@ interface Draft {
 export function UsersAdmin({ users, centres, currentUserId }: { users: UserRow[]; centres: { id: string; name: string }[]; currentUserId: string }) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [disabling2fa, setDisabling2fa] = useState<UserRow | null>(null);
   const [pending, start] = useTransition();
   const centreName = Object.fromEntries(centres.map((c) => [c.id, c.name]));
   const set = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
@@ -63,6 +64,10 @@ export function UsersAdmin({ users, centres, currentUserId }: { users: UserRow[]
                 {u.twoFactorEnabled ? (
                   <Badge tone="outline">
                     <ShieldCheck className="size-3" aria-hidden /> 2FA
+                  </Badge>
+                ) : u.role === "admin" && u.twoFactorExempt ? (
+                  <Badge tone="warning">
+                    <ShieldOff className="size-3" aria-hidden /> 2FA désactivée
                   </Badge>
                 ) : u.role === "admin" ? (
                   <Badge tone="warning">
@@ -97,7 +102,17 @@ export function UsersAdmin({ users, centres, currentUserId }: { users: UserRow[]
                 )}
                 {u.twoFactorEnabled ? (
                   <DropdownMenuItem onSelect={() => act(() => resetTwoFactorAction(u.id))}>
-                    <ShieldOff aria-hidden /> Réinitialiser la 2FA
+                    <RotateCcw aria-hidden /> Réinitialiser la 2FA
+                  </DropdownMenuItem>
+                ) : null}
+                {u.id !== currentUserId && (u.twoFactorEnabled || (u.role === "admin" && !u.twoFactorExempt)) ? (
+                  <DropdownMenuItem onSelect={() => setDisabling2fa(u)}>
+                    <ShieldOff aria-hidden /> Désactiver la 2FA
+                  </DropdownMenuItem>
+                ) : null}
+                {u.id !== currentUserId && u.role === "admin" && u.twoFactorExempt && !u.twoFactorEnabled ? (
+                  <DropdownMenuItem onSelect={() => act(() => setTwoFactorExemptAction(u.id, false))}>
+                    <ShieldAlert aria-hidden /> Exiger la 2FA
                   </DropdownMenuItem>
                 ) : null}
                 {u.id !== currentUserId ? (
@@ -111,6 +126,37 @@ export function UsersAdmin({ users, centres, currentUserId }: { users: UserRow[]
           </li>
         ))}
       </ul>
+
+      <Dialog open={Boolean(disabling2fa)} onOpenChange={(o) => !o && setDisabling2fa(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Désactiver la double authentification{disabling2fa ? ` de ${disabling2fa.firstName} ${disabling2fa.lastName.toUpperCase()}` : ""} ?</DialogTitle>
+            <DialogDescription>
+              {disabling2fa?.role === "admin"
+                ? "Le code de l'application d'authentification ne lui sera plus demandé, ni à la connexion ni pour configurer la 2FA. Ce compte administrateur donne accès à toutes les données patients : réservez cette dispense aux cas justifiés. Vous pourrez l'exiger à nouveau à tout moment."
+                : "Le code de l'application d'authentification ne lui sera plus demandé à la connexion. Cette personne pourra la réactiver elle-même depuis son compte."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDisabling2fa(null)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={pending}
+              data-testid="confirm-disable-2fa"
+              onClick={() => {
+                const id = disabling2fa?.id;
+                setDisabling2fa(null);
+                if (id) act(() => setTwoFactorExemptAction(id, true));
+              }}
+            >
+              Désactiver la 2FA
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(draft)} onOpenChange={(o) => !o && setDraft(null)}>
         <DialogContent size="lg">

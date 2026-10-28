@@ -10,6 +10,7 @@ import {
   resendInvitation,
   resetTwoFactor,
   saveCentre,
+  setTwoFactorExempt,
   setUserActive,
   updateOrganization,
   updateSettings,
@@ -88,6 +89,14 @@ export async function resetTwoFactorAction(userId: string): Promise<ActionResult
     revalidatePath("/admin/utilisateurs");
     return undefined;
   }, "Double authentification réinitialisée : elle sera reconfigurée à la prochaine connexion.");
+}
+
+export async function setTwoFactorExemptAction(userId: string, exempt: boolean): Promise<ActionResult> {
+  return runAction(async () => {
+    await setTwoFactorExempt(await adminCtx(), z.string().parse(userId), z.boolean().parse(exempt));
+    revalidatePath("/admin/utilisateurs");
+    return undefined;
+  }, exempt ? "Double authentification désactivée pour cet utilisateur." : "Double authentification exigée : elle sera configurée à la prochaine connexion.");
 }
 
 export async function purgeAction(dryRun: boolean): Promise<ActionResult<PurgeReport>> {

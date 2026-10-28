@@ -35,6 +35,8 @@ export const AUDIT_LABELS: Record<string, string> = {
   "user.update": "Utilisateur modifié",
   "user.deactivate": "Utilisateur désactivé",
   "user.reactivate": "Utilisateur réactivé",
+  "user.2fa_disabled": "Double authentification désactivée",
+  "user.2fa_required": "Double authentification exigée",
   "user.profile": "Profil modifié",
   "centre.create": "Centre créé",
   "centre.update": "Centre modifié",

@@ -52,6 +52,8 @@ export interface AppUserDoc {
   active: boolean;
   canSend: boolean;
   twoFactorEnabled?: boolean;
+  /** Dispense de la double authentification obligatoire des administrateurs, accordée par un autre administrateur. */
+  twoFactorExempt?: boolean;
   signature?: z.infer<typeof imageDataUrlSchema> | null;
   preferences?: UserPreferences;
   createdAt: Date;

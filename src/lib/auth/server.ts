@@ -90,7 +90,7 @@ function createAuth() {
         if (ctx.path !== "/sign-in/magic-link") return;
         const email = typeof ctx.body?.email === "string" ? ctx.body.email.toLowerCase() : "";
         const user = email ? await collections().users().findOne({ email }) : null;
-        if (user && (user.role === "admin" || user.twoFactorEnabled)) {
+        if (user && (user.twoFactorEnabled || (user.role === "admin" && !user.twoFactorExempt))) {
           throw new APIError("FORBIDDEN", {
             message:
               "La connexion par lien n'est pas disponible pour ce compte protégé par double authentification. Utilisez votre mot de passe.",

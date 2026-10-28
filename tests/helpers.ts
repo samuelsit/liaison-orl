@@ -95,6 +95,7 @@ export async function createTestContext(
     centreIds,
     canSend: opts.canSend ?? false,
     twoFactorEnabled: role === "admin",
+    twoFactorRequired: role === "admin",
     hasSignature: false,
   };
   const accessible = role === "admin" ? centres : centres.filter((c) => centreIds.includes(c._id));

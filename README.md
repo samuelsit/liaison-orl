@@ -259,6 +259,7 @@ Poussez sur la branche principale du dépôt : Vercel redéploie automatiquement
 | Un envoi est en erreur | Accueil → « Erreurs d'envoi » ; le détail de l'envoi donne la raison (adresse refusée par La Poste, e-mail rejeté…) et permet de corriger puis renvoyer |
 | Un service semble indisponible | Administration → Services → Tester les connexions |
 | Un utilisateur a perdu son téléphone (2FA) | Administration → Utilisateurs → menu de l'utilisateur → Réinitialiser la 2FA |
+| Dispenser un utilisateur de la double authentification | Administration → Utilisateurs → menu de l'utilisateur → Désactiver la 2FA (« Exiger la 2FA » pour revenir en arrière ; impossible sur son propre compte) |
 | Qui a fait quoi ? | Administration → Journal d'audit (filtres, export CSV) |
 | Erreurs techniques | Vercel → projet → *Logs* |
 
