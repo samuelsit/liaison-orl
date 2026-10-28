@@ -1,6 +1,6 @@
 # Liaison ORL
 
-Outil web pour les audioprothésistes du réseau : préparer, compléter et envoyer aux ORL (et autres prescripteurs) les **courriers d'adressage** et les **comptes rendus d'appareillage**, par e-mail sécurisé et/ou courrier postal. L'IA lit le bilan auditif, calcule le degré de surdité (BIAP) et le gain prothétique, et propose les textes ; l'audioprothésiste relit et valide toujours avant envoi.
+Outil web pour les audioprothésistes du réseau : préparer et compléter les **courriers d'adressage** (affichés, imprimés et téléchargés en PDF) et les **comptes rendus d'appareillage**, envoyés aux ORL (et autres prescripteurs) par e-mail sécurisé et/ou courrier postal. L'IA lit le bilan auditif, calcule le degré de surdité (BIAP) et le gain prothétique, et propose les textes ; l'audioprothésiste relit et valide toujours avant envoi.
 
 Ce document explique :
 
@@ -220,8 +220,8 @@ Puis, dans **Administration** :
 
 1. **Administration → Services → Tester les connexions** : tous les services doivent être « Connecté ».
 2. Créez un **prescripteur fictif** avec **votre propre e-mail** et votre adresse postale, puis un patient fictif.
-3. Faites un **adressage** et envoyez-le par e-mail : vérifiez la réception, ouvrez le lien, saisissez la date de naissance du patient fictif, et vérifiez que le statut passe à « Ouvert ».
-4. Faites un **compte rendu** avec un bilan de [demo/bilans/](demo/bilans/) et envoyez-le par courrier (Pingen **staging**) : le courrier apparaît dans Pingen, son statut évolue dans l'application.
+3. Faites un **adressage**, validez-le, puis **imprimez-le** et **téléchargez le PDF** (l'adressage ne s'envoie pas : aucune action d'envoi ne doit apparaître).
+4. Faites un **compte rendu** avec un bilan de [demo/bilans/](demo/bilans/) et envoyez-le **par e-mail et par courrier** (Pingen **staging**) : vérifiez la réception de l'e-mail, ouvrez le lien, saisissez la date de naissance du patient fictif et vérifiez que le statut passe à « Ouvert » ; le courrier apparaît dans Pingen et son statut évolue dans l'application.
 5. **Administration → Journal d'audit** : toutes ces actions y figurent.
 6. Supprimez les données de test (fiche patient → Supprimer).
 

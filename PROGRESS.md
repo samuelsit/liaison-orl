@@ -1,6 +1,19 @@
 # Avancement
 
-État au 2026-10-27 : **toutes les phases sont terminées**, refonte des documents sortants comprise. Le parcours complet fonctionne de bout en bout en mode démo (sans aucune clé) et il est couvert par les tests automatisés.
+État au 2026-10-28 : **toutes les phases sont terminées**, refonte des documents sortants et changement de périmètre de l'adressage compris. Le parcours complet fonctionne de bout en bout en mode démo (sans aucune clé) et il est couvert par les tests automatisés.
+
+## Changement de périmètre : adressage non envoyable (2026-10-28)
+
+Le courrier d'adressage n'est plus envoyé : il est **affiché, imprimé et téléchargé en PDF**. Le compte rendu d'appareillage ne change pas (e-mail Resend + courrier Pingen). Décisions n° 68 à 73 dans [DECISIONS.md](DECISIONS.md).
+
+- **Parcours** : saisir → valider → « Imprimer » (boîte d'impression du navigateur sur le PDF exact) ou « Télécharger le PDF ». Le PDF validé est affiché (onglet Aperçu ouvert d'office sur mobile).
+- **Retiré pour l'adressage** : bouton et page « Préparer l'envoi », choix des canaux, sélection dans l'envoi groupé, raccourci de la palette, action d'envoi du toast de validation. Le renvoi est impossible, puisqu'aucun envoi n'existe.
+- **Serveur** : préparation, envoi, renvoi et envoi groupé refusent un adressage (« Le courrier d'adressage ne s'envoie pas : imprimez-le ou téléchargez le PDF. »), même appelés directement ; aucun envoi n'est créé.
+- **PDF** : plus de version postale (zones Pingen) pour l'adressage ; la version standard fidèle au modèle est la seule produite.
+- **Statuts et écrans** : un adressage passe de BROUILLON à VALIDÉ, jamais ENVOYÉ ni ERREUR. « Prêts à envoyer » et l'envoi groupé ne portent que sur les comptes rendus ; « Envoyés récemment » et « Erreurs d'envoi » ne listent que des envois de comptes rendus ; les filtres Envoyés / Erreurs disparaissent pour l'adressage ; les statistiques séparent les comptes rendus envoyés et les adressages validés.
+- **Seed** : aucun adressage ENVOYÉ, ERREUR ou avec des envois (vérifié en fin de seed) ; l'erreur d'envoi de démonstration porte sur un compte rendu.
+- **Correctif annexe** : le commentaire du compte rendu n'était jamais rédigé automatiquement après confirmation du bilan, car le contexte partagé n'était pas monté (régression antérieure, cause de l'échec E2E « compte rendu » listé auparavant en problème connu n° 8). C'est corrigé.
+- Aucune migration : la base de production a été remise à zéro.
 
 ## Refonte documents (2026-10-27)
 
@@ -11,7 +24,7 @@ Refonte de tous les documents et e-mails sortants : sobres, lisibles, paramétr�
 | | Gabarit | Code | État |
 |---|---|---|---|
 | ✅ | PDF — Courrier d'adressage (version e-mail) | `src/lib/pdf/templates/adressage.tsx` | refondu |
-| ✅ | PDF — Courrier d'adressage (version postale, adresse dans la fenêtre) | idem, variante `postal` | refondu ; page d'accompagnement supprimée |
+| ➖ | PDF — Courrier d'adressage (version postale) | — | **supprimé le 2026-10-28** : l'adressage ne s'envoie plus (imprimé ou téléchargé) |
 | ✅ | PDF — Compte rendu d'appareillage (version e-mail) | `src/lib/pdf/templates/compte-rendu.tsx` | refondu ; audiogramme et gain intégrés (ancienne annexe) |
 | ✅ | PDF — Compte rendu d'appareillage (version postale) | idem, variante `postal` | refondu |
 | ✅ | PDF — Aperçu de marque (administration) | `src/lib/pdf/sample.ts` | mêmes composants que les PDF envoyés |
@@ -56,23 +69,23 @@ Refonte de tous les documents et e-mails sortants : sobres, lisibles, paramétr�
 
 | Commande | Résultat |
 |---|---|
-| `npm run lint` | ✅ 0 erreur, 0 avertissement (2026-10-27) |
+| `npm run lint` | ✅ 0 erreur, 0 avertissement (2026-10-28) |
 | `npm run typecheck` | ✅ |
-| `npm run test` | ✅ 42 fichiers, 332 tests (unitaires, intégration sur base MongoDB embarquée, zones Pingen, non-régression visuelle PDF et e-mails) |
+| `npm run test` | ✅ 43 fichiers, 331 tests (unitaires, intégration sur base MongoDB embarquée, zones Pingen, non-régression visuelle PDF et e-mails) |
 | `npm run build` | ✅ |
 | `npm run render:docs` | ✅ 16 PDF, zones Pingen conformes partout |
-| `npm run test:e2e` | ⚠️ 21 / 27 : 6 échecs **déjà présents avant la refonte** (rejoués à l'identique sur le commit 492f911), voir « Problèmes connus » n° 8 |
+| `npm run test:e2e` | ⚠️ 22 / 27 (2026-10-28) : adressage (impression / téléchargement) et compte rendu (envoi + lien sécurisé) ✅ ; 5 échecs **antérieurs**, voir « Problèmes connus » n° 8 |
 
 ## Ce qui est livré
 
 **Pour l'audioprothésiste**
-- Accueil orienté action : « Nouvel adressage » / « Nouveau compte rendu », brouillons à finir, envois récents, erreurs d'envoi.
+- Accueil orienté action : « Nouvel adressage » / « Nouveau compte rendu », brouillons à finir, comptes rendus prêts à envoyer, envois récents, erreurs d'envoi.
 - Éditeur sur un seul écran : formulaire à gauche, **aperçu PDF exact en direct** à droite (onglets sur mobile), sauvegarde automatique permanente (avec copie locale de secours), validation explicite.
 - PDF refondus (2026-10-27) : courrier de cabinet sobre en Inter, couleurs issues de la marque, audiogramme vectoriel et gain prothétique, version postale conforme aux zones Pingen (voir « Refonte documents »).
 - Compte rendu : dépôt du bilan (glisser-déposer, coller, photo), étapes lisibles, **lecture par l'IA** avec niveau de confiance par valeur, tableau de correction et audiogrammes redessinés, **degré BIAP et gain prothétique calculés en code** (règle affichée), commentaire rédigé (plus court / plus détaillé / plus technique), badges « Suggéré par l'IA » jusqu'à validation.
-- Adressage : motif « Autre » reformulé par l'IA à partir de quelques mots ; dictée vocale nettoyée par l'IA.
+- Adressage : motif « Autre » reformulé par l'IA à partir de quelques mots ; dictée vocale nettoyée par l'IA ; après validation, **impression** et **téléchargement du PDF** (jamais d'envoi).
 - Valeurs mémorisées (marque, classe, rechargeable…), prescripteur habituel proposé automatiquement.
-- Envoi : récapitulatif (aperçu, destinataire, canaux, coût du courrier, alertes), e-mail avec **lien sécurisé à second facteur** (ou pièce jointe si l'admin l'autorise), courrier Pingen (lettre verte, rapide ou recommandée), suivi des statuts par webhooks + interrogation périodique, renvoi en un clic, correction d'adresse après refus, **envoi groupé**.
+- Envoi (compte rendu uniquement) : récapitulatif (aperçu, destinataire, canaux, coût du courrier, alertes), e-mail avec **lien sécurisé à second facteur** (ou pièce jointe si l'admin l'autorise), courrier Pingen (lettre verte, rapide ou recommandée), suivi des statuts par webhooks + interrogation périodique, renvoi en un clic, correction d'adresse après refus, **envoi groupé**.
 - Annuaire ORL (recherche, favoris, récents, création rapide sans quitter le formulaire, import CSV, dédoublonnage et fusion), patients, historiques par patient et par prescripteur.
 - Palette de commandes (Ctrl/⌘ + K), raccourcis clavier, mode sombre, responsive tablette/téléphone.
 
@@ -91,12 +104,12 @@ Refonte de tous les documents et e-mails sortants : sobres, lisibles, paramétr�
 **Exploitation**
 - `npm run demo` (tout en local, sans clé), `npm run seed`, `npm run admin:create`, `npm run db:indexes`, `npm run ai:check`, `npm run render:docs`, `npm run render:emails`, `npm run pingen:check`.
 - [README.md](README.md) : mise en production pas à pas (Atlas, S3, Anthropic, Resend, Pingen, Vercel, domaine, webhooks, premier administrateur, vérifications, conformité).
-- [DECISIONS.md](DECISIONS.md) : 48 décisions argumentées.
+- [DECISIONS.md](DECISIONS.md) : 73 décisions argumentées.
 
 ## Tests de bout en bout (Playwright, mode démo)
 
-- Adressage complet : patient → prescripteur habituel proposé → motif reformulé par l'IA → validation → envoi e-mail → **ouverture du lien sécurisé côté médecin** (mauvaise puis bonne date de naissance, PDF téléchargé) → statut « Ouvert ».
-- Compte rendu complet : dépôt d'un bilan PDF → extraction → confirmation → commentaire rédigé → validation → envoi e-mail + courrier.
+- Adressage complet : patient → prescripteur habituel proposé → motif reformulé par l'IA → validation → PDF affiché → **téléchargement** (`courrier-adressage-v1.pdf`) → **impression** (PDF chargé dans le cadre d'impression) ; aucune action d'envoi, page d'envoi refusée, filtres Envoyés / Erreurs absents.
+- Compte rendu complet : dépôt d'un bilan PDF → extraction → confirmation → commentaire rédigé → validation → envoi e-mail + courrier → **ouverture du lien sécurisé côté médecin** (mauvaise puis bonne date de naissance, PDF téléchargé) → statut « Ouvert ».
 - Droits (assistante sans droit d'envoi, API non authentifiées), authentification (2FA admin, accès admin refusé), sécurité (en-têtes, CSP à nonce, cron, webhooks non signés, aucune erreur JavaScript ni violation de CSP), administration (toutes les pages, invitation, export d'audit), annuaire et palette.
 - **Accessibilité** : axe-core WCAG 2.2 AA + bonnes pratiques, **0 violation** sur les écrans publics, principaux, éditeur et admin, en clair et en sombre ; navigation au clavier (lien d'évitement, palette, raccourcis).
 - **Mobile** (Pixel 7) : menu, éditeur à onglets, aucune page qui déborde horizontalement.
@@ -110,7 +123,7 @@ Refonte de tous les documents et e-mails sortants : sobres, lisibles, paramétr�
 5. **Dictée vocale** : assurée par le navigateur ; Chrome et Edge envoient l'audio à Google ou Microsoft. Réglage « Dictée vocale » dans Administration → Modèles pour la désactiver si nécessaire.
 6. **Accès réseau Atlas** : sans IP fixes côté Vercel, l'accès doit être ouvert à `0.0.0.0/0` (protégé par mot de passe et TLS) ; préférer l'option d'IP statiques de Vercel si l'offre la propose.
 7. La limitation de débit maison (lien sécurisé, IA) peut compter un ou deux appels de moins lors de la création simultanée d'une fenêtre ; sans conséquence pratique (le verrouillage du lien sécurisé, lui, est atomique).
-8. **Six tests E2E en échec, antérieurs à la refonte des documents** (mêmes échecs sur le commit 492f911, avant toute modification) : règle axe-core `label-content-name-mismatch` sur trois champs `.border-input` de l'accueil, de l'éditeur et de l'administration (4 tests d'accessibilité) ; commentaire IA non rédigé dans le délai de 20 s du parcours « compte rendu » ; délai dépassé sur le parcours mobile. Écrans non touchés par la refonte ; à corriger séparément.
+8. **Cinq tests E2E en échec, antérieurs à la refonte des documents** (déjà présents sur le commit 492f911) : règle axe-core `label-content-name-mismatch` sur trois champs `.border-input` de l'accueil, de l'éditeur et de l'administration (4 tests d'accessibilité) ; délai dépassé à l'ouverture du combobox patient dans le parcours mobile. À corriger séparément. (Le sixième, commentaire IA non rédigé dans le parcours « compte rendu », est corrigé depuis le 2026-10-28.)
 9. **Envoi de contrôle Pingen staging non réalisé** (aucun identifiant) : lancer `npm run pingen:check` pour confirmer la position du code DMC et la validation des gabarits par Pingen.
 
 ## Hors périmètre V1 (prévu par le cahier des charges)

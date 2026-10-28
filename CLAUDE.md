@@ -1,6 +1,6 @@
 # LIAISON ORL — Cahier des charges pour Claude Code
 
-Outil web assisté par IA pour que les audioprothésistes des centres Harmonie Audition préparent, complètent et envoient aux ORL (et autres prescripteurs) leurs courriers d'adressage et comptes rendus d'appareillage, par e-mail et/ou courrier postal.
+Outil web assisté par IA pour que les audioprothésistes des centres Harmonie Audition préparent et complètent leurs courriers d'adressage (affichés, imprimés et téléchargés en PDF) et leurs comptes rendus d'appareillage, envoyés aux ORL (et autres prescripteurs) par e-mail et/ou courrier postal.
 
 Ce fichier est la référence du projet. Lis-le en entier avant chaque tâche.
 
@@ -24,8 +24,8 @@ Le propriétaire du projet veut un produit fini, utilisable en production, sans 
 - Réseau de centres auditifs (11+ centres en Île-de-France et Normandie, nouvelles ouvertures en cours, réseau de franchise en préparation).
 - Utilisateurs : audioprothésistes D.E. (rôle principal), assistant(e)s, administrateurs.
 - Deux documents existants à reproduire fidèlement en PDF (modèles dans /docs/modeles/) :
-  1. COURRIER D'ADRESSAGE — l'audioprothésiste adresse un patient à un ORL (vérification des conduits auditifs externes, bilan auditif, autre motif libre).
-  2. COMPTE RENDU D'APPAREILLAGE — retour au médecin prescripteur après appareillage.
+  1. COURRIER D'ADRESSAGE — l'audioprothésiste adresse un patient à un ORL (vérification des conduits auditifs externes, bilan auditif, autre motif libre). Imprimé ou téléchargé, jamais envoyé par l'application.
+  2. COMPTE RENDU D'APPAREILLAGE — retour au médecin prescripteur après appareillage, envoyé par e-mail et/ou courrier postal.
 - Logiciel métier patient : Cosium ; agenda : Doctolib. Pas d'intégration en V1, mais saisie la plus rapide possible.
 
 ## 2. Principes non négociables
@@ -85,9 +85,9 @@ Un utilisateur peut avoir plusieurs centres ; sélecteur de centre actif dans la
 - users : nom, prénom, titre ("Audioprothésiste D.E"), rôle, centres, signature scannée (image), préférences et valeurs par défaut mémorisées.
 - prescribers (ORL/médecins) : civilité, nom, prénom, spécialité, RPPS (optionnel), cabinet, adresse postale structurée (ligne 1, ligne 2, code postal, ville, pays), e-mail, téléphone, canal préféré (email / courrier / les deux), formule d'appel ("Cher Confrère", "Chère Madame"…), notes, centres associés, favori, actif/archivé.
 - patients : civilité, nom, prénom, date de naissance, centre, prescripteur habituel.
-- documents : type (ADRESSAGE | COMPTE_RENDU), patient, prescripteur, centre, auteur, données (validées par Zod, schéma versionné), statut (BROUILLON | VALIDÉ | ENVOYÉ | ERREUR), clé S3 du PDF, version.
+- documents : type (ADRESSAGE | COMPTE_RENDU), patient, prescripteur, centre, auteur, données (validées par Zod, schéma versionné), statut (BROUILLON | VALIDÉ | ENVOYÉ | ERREUR ; un adressage n'a que BROUILLON | VALIDÉ), clé S3 du PDF, version.
 - attachments : bilan auditif (PDF/image), clé S3, extraction IA (JSON + confiance par champ), confirmée oui/non.
-- dispatches : document, canal (EMAIL | COURRIER), destinataire, statut, id externe (Resend / Pingen), coût, horodatages, événements reçus.
+- dispatches : document (compte rendu uniquement), canal (EMAIL | COURRIER), destinataire, statut, id externe (Resend / Pingen), coût, horodatages, événements reçus.
 - auditLogs : utilisateur, action, entité, horodatage, IP.
 
 ## 6. Les deux documents
@@ -96,6 +96,14 @@ Un utilisateur peut avoir plusieurs centres ; sélecteur de centre actif dans la
 
 Champs : patient (Mme/M., nom), examens (vérification des conduits auditifs externes, bilan auditif, autre + texte libre), audioprothésiste, centre, date.
 IA : à partir de quelques mots dictés ou tapés ("bouchon cérumen OD, vertiges depuis 3 semaines"), formulation médicale sobre pour le motif "Autre".
+
+Diffusion : le courrier d'adressage **n'est jamais envoyé** par l'application (ni e-mail, ni courrier postal). Il est seulement affiché, imprimé et téléchargé en PDF :
+
+- Parcours : saisir → valider → imprimer / télécharger. Après validation, le PDF est affiché avec deux actions bien visibles : « Imprimer » (boîte d'impression du navigateur sur le PDF) et « Télécharger le PDF ».
+- Statuts : BROUILLON → VALIDÉ, jamais ENVOYÉ ni ERREUR.
+- Aucun bouton d'envoi, écran récapitulatif, choix de canaux, sélection dans l'envoi groupé ni renvoi.
+- Un seul PDF : la version standard fidèle au modèle, sans version postale (zones Pingen).
+- Côté serveur, toute création d'envoi (dispatch) pour un adressage est refusée, même appelée directement, avec un message clair.
 
 ### 6.2 Compte rendu d'appareillage
 
@@ -122,6 +130,8 @@ Fonction phare — l'audioprothésiste joint le bilan auditif (PDF exporté, cap
 
 ## 7. Envoi
 
+Cette section ne concerne que le **compte rendu d'appareillage**. Le courrier d'adressage ne s'envoie pas (voir 6.1) : la préparation, l'envoi, le renvoi et l'envoi groupé le refusent côté serveur.
+
 ### 7.1 E-mail (Resend)
 
 - Expéditeur au nom du centre sur un domaine vérifié ; Reply-To = e-mail du centre ; copie optionnelle au centre.
@@ -132,7 +142,7 @@ Fonction phare — l'audioprothésiste joint le bilan auditif (PDF exporté, cap
 
 - Auth OAuth2 client_credentials ; jeton mis en cache jusqu'à expiration.
 - Environnement staging de Pingen utilisé automatiquement hors production (`PINGEN_ENV=staging|production`). Aucun envoi réel hors production.
-- Le PDF postal doit contenir l'adresse du destinataire dans la zone fenêtre de l'enveloppe attendue par Pingen (vérifier la spécification exacte de zone et marges dans la doc Pingen et la respecter au millimètre). Générer pour l'envoi postal une version du document avec bloc adresse destinataire (et adresse expéditeur du centre) positionné dans cette zone ; la dernière ligne de l'adresse est le pays (FRANCE).
+- Le PDF postal (compte rendu uniquement) doit contenir l'adresse du destinataire dans la zone fenêtre de l'enveloppe attendue par Pingen (vérifier la spécification exacte de zone et marges dans la doc Pingen et la respecter au millimètre). Générer pour l'envoi postal une version du document avec bloc adresse destinataire (et adresse expéditeur du centre) positionné dans cette zone ; la dernière ligne de l'adresse est le pays (FRANCE).
 - Création de la lettre avec envoi automatique désactivé, puis déclenchement de l'envoi après validation finale de l'utilisateur. Options : produit d'acheminement, recto, couleur/noir & blanc — valeurs par défaut réglables par l'admin.
 - Validation d'adresse avant envoi ; prix affiché avant confirmation quand l'API le permet.
 - Statuts via webhooks Pingen (signature vérifiée) ; gestion explicite des refus (adresse invalide, PDF non conforme) avec message compréhensible et action de correction.
@@ -140,14 +150,14 @@ Fonction phare — l'audioprothésiste joint le bilan auditif (PDF exporté, cap
 ### 7.3 Commun
 
 - Écran récapitulatif avant envoi : aperçu PDF exact, destinataire, canaux, coût courrier, alertes (e-mail ou adresse manquants).
-- Envoi groupé de plusieurs documents validés.
-- Historique par patient et par ORL ; renvoi en un clic ; idempotence (pas de double envoi sur double clic ou webhook rejoué).
+- Envoi groupé de plusieurs comptes rendus validés.
+- Historique par patient et par ORL (un adressage y figure avec son statut, sans envoi) ; renvoi en un clic ; idempotence (pas de double envoi sur double clic ou webhook rejoué).
 
 ## 8. UI/UX
 
 Objectif : un compte rendu complet en moins de 2 minutes, un adressage en moins de 30 secondes.
 
-- Accueil orienté action : deux grands boutons "Nouvel adressage" / "Nouveau compte rendu", puis "À finir", "Envoyés récemment", "Erreurs d'envoi".
+- Accueil orienté action : deux grands boutons "Nouvel adressage" / "Nouveau compte rendu", puis "À finir", "Prêts à envoyer", "Envoyés récemment", "Erreurs d'envoi" (ces trois dernières sections ne portent que sur les comptes rendus).
 - Palette de commandes (Cmd/Ctrl+K) : patient, ORL, document, actions.
 - Création en un écran : formulaire à gauche, aperçu PDF en direct à droite (mobile : onglets Formulaire / Aperçu).
 - Choix de l'ORL : autocomplétion (nom, ville, cabinet), favoris et récents en tête, création rapide en fenêtre sans quitter le formulaire.
@@ -167,7 +177,7 @@ Objectif : un compte rendu complet en moins de 2 minutes, un adressage en moins 
 - Centres, utilisateurs (invitation par e-mail, rôles, rattachements), annuaire ORL global (import CSV, dédoublonnage, fusion).
 - Modèles : e-mails, formules de politesse, ton de l'IA, champs optionnels.
 - Paramètres d'envoi : options Pingen par défaut, lien sécurisé ou pièce jointe, validité des liens.
-- Statistiques : documents par centre / audioprothésiste / ORL, coûts courrier, consommation IA, taux d'erreur.
+- Statistiques : documents par centre / audioprothésiste / ORL, comptes rendus envoyés et adressages validés comptés à part, coûts courrier, consommation IA, taux d'erreur.
 - Journal d'audit filtrable et exportable (CSV).
 - État des services (IA, Resend, Pingen, S3 : connecté / mode démo / erreur).
 
