@@ -62,8 +62,16 @@ export type PdfModel =
   | (Common & { type: "ADRESSAGE"; data: AdressageData })
   | (Common & { type: "COMPTE_RENDU"; data: CompteRenduData; audiometry: Audiometry | null });
 
-/** standard = envoi par e-mail (bloc « À l'attention de ») ; postal = bloc adresse dans la fenêtre Pingen. */
+/**
+ * standard = PDF imprimé, téléchargé ou envoyé par e-mail (bloc « À l'attention de ») ;
+ * postal = bloc adresse dans la fenêtre Pingen, pour le seul compte rendu (l'adressage ne part pas par courrier).
+ */
 export type PdfVariant = "standard" | "postal";
+
+/** Versions produites pour un type de document. */
+export function variantsFor(type: PdfModel["type"]): readonly PdfVariant[] {
+  return type === "COMPTE_RENDU" ? ["standard", "postal"] : ["standard"];
+}
 
 export interface PdfRenderOptions {
   /** Superpose les zones Pingen (bord bloqué, affranchissement, adresse, DMC). */

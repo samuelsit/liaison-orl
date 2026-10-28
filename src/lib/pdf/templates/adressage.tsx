@@ -4,7 +4,7 @@ import { pdfFr } from "@/lib/i18n/pdf";
 import { BulletList } from "../components/blocks";
 import { bodyStyle } from "../components/theme";
 import { typo } from "../typography";
-import type { PdfModel, PdfRenderOptions, PdfVariant } from "../model";
+import type { PdfModel, PdfRenderOptions } from "../model";
 import { LetterPage, longDate, personLabel } from "./letter";
 
 type AdressageModel = Extract<PdfModel, { type: "ADRESSAGE" }>;
@@ -23,20 +23,15 @@ export function adressageExams(model: AdressageModel): string[] {
   return items;
 }
 
-/** Courrier d'adressage : une page courte et confraternelle. */
-export function AdressagePage({
-  model,
-  variant,
-  options,
-}: {
-  model: AdressageModel;
-  variant: PdfVariant;
-  options: PdfRenderOptions;
-}) {
+/**
+ * Courrier d'adressage : une page courte et confraternelle, imprimée ou téléchargée
+ * (jamais envoyée par courrier : toujours la version standard, sans bloc adresse postal).
+ */
+export function AdressagePage({ model, options }: { model: AdressageModel; options: PdfRenderOptions }) {
   const exams = adressageExams(model);
   const p = model.patient;
   return (
-    <LetterPage model={model} variant={variant} options={options}>
+    <LetterPage model={model} variant="standard" options={options}>
       {(theme) => ({
         body: (
           <>

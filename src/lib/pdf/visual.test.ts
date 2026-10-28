@@ -5,6 +5,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { afterAll, describe, expect, it } from "vitest";
 import { pdfFixtures } from "./fixtures";
+import { variantsFor } from "./model";
 import { renderPdf } from "./render";
 
 /**
@@ -51,7 +52,7 @@ async function diffRatio(a: string, b: string): Promise<number> {
 describe.skipIf(!hasPdftoppm)("non-régression visuelle des PDF", async () => {
   mkdirSync(BASELINE_DIR, { recursive: true });
   for (const { name, model } of await pdfFixtures()) {
-    for (const variant of ["standard", "postal"] as const) {
+    for (const variant of variantsFor(model.type)) {
       const base = `${name}-${variant === "standard" ? "email" : "postal"}`;
       it(base, async () => {
         const { buffer } = await renderPdf(model, variant);

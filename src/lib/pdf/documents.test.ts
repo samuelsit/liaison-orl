@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { pdfFixtures, type PdfFixture } from "./fixtures";
 import { postalAddress } from "./address";
 import { checkPingenZones, describeViolation, inspectPdf, type PageInk } from "./inspect";
+import { variantsFor } from "./model";
 import { renderPdf } from "./render";
 import { PINGEN_ZONES, intersects } from "./zones";
 
@@ -28,7 +29,7 @@ function addressOf(f: PdfFixture) {
 
 describe("zones Pingen (boîtes englobantes extraites avec pdf.js)", () => {
   for (const f of fixtures) {
-    for (const variant of ["standard", "postal"] as const) {
+    for (const variant of variantsFor(f.model.type)) {
       it(`${f.name} — version ${variant === "postal" ? "postale" : "e-mail"}`, async () => {
         const address = addressOf(f);
         expect(address.errors).toEqual([]);
@@ -75,6 +76,15 @@ describe("contenu des documents", () => {
     await renderPdf(byName("adressage").model, "standard");
     const text = await textOf(await inspectPdf((await renderPdf(byName("compte-rendu").model)).buffer));
     expect(text).toContain("Avec appareils (dB HL)");
+  });
+
+  it("produit toujours la version standard du courrier d'adressage (aucune version postale)", async () => {
+    const model = byName("adressage").model;
+    expect(variantsFor(model.type)).toEqual(["standard"]);
+    const standard = await renderPdf(model, "standard");
+    const postal = await renderPdf(model, "postal");
+    expect(await textOf(await inspectPdf(postal.buffer))).toBe(await textOf(await inspectPdf(standard.buffer)));
+    expect(await textOf(await inspectPdf(postal.buffer))).toMatch(/attention/);
   });
 
   it("supporte des rendus simultanés", async () => {

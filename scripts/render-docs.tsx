@@ -1,7 +1,7 @@
 /**
  * npm run render:docs [dossier] [--previews]
  *
- * Génère tous les PDF envoyés (version e-mail et version postale, cas nominaux et cas
+ * Génère tous les PDF sortants (version standard, et version postale du compte rendu ; cas nominaux et cas
  * limites) dans /tmp/docs-preview, une version « debug » avec les zones Pingen
  * superposées, les convertit en PNG (pdftoppm, 150 dpi) et contrôle les zones Pingen.
  * Avec --previews, copie les captures de référence dans docs/previews/.
@@ -13,6 +13,7 @@ import path from "node:path";
 import { pdfFixtures } from "@/lib/pdf/fixtures";
 import { postalAddress } from "@/lib/pdf/address";
 import { checkPingenZones, describeViolation, inspectPdf } from "@/lib/pdf/inspect";
+import { variantsFor } from "@/lib/pdf/model";
 import { renderPdf } from "@/lib/pdf/render";
 
 const args = process.argv.slice(2);
@@ -34,7 +35,7 @@ for (const { name, model } of await pdfFixtures()) {
   const lines = model.prescriber
     ? postalAddress({ ...model.prescriber, practiceName: model.prescriber.practiceName }, model.brand.font)
     : { lines: [], errors: ["Aucun prescripteur"], warnings: [] };
-  for (const variant of ["standard", "postal"] as const) {
+  for (const variant of variantsFor(model.type)) {
     if (variant === "postal" && lines.errors.length) {
       console.log(`${name}-postal — envoi postal bloqué : ${lines.errors.join(" ")}`);
       continue;

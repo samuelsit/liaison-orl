@@ -19,12 +19,14 @@ async function main() {
   }
   const { pdfFixtures } = await import("@/lib/pdf/fixtures");
   const { renderPdf } = await import("@/lib/pdf/render");
+  const { variantsFor } = await import("@/lib/pdf/model");
   const { postalProvider } = await import("@/server/services/postal");
   const provider = postalProvider();
   const options = { deliveryProduct: "cheap" as const, printMode: "simplex" as const, printSpectrum: "color" as const, addressPosition: "right" as const };
   let failures = 0;
   for (const { name, model } of await pdfFixtures()) {
-    if (!model.prescriber) continue;
+    // Seul le compte rendu part par courrier.
+    if (!model.prescriber || !variantsFor(model.type).includes("postal")) continue;
     const { buffer } = await renderPdf(model, "postal");
     let state = await provider.createLetter({
       pdf: buffer,

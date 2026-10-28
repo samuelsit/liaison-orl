@@ -29,7 +29,7 @@ export function buildPdfElement(
       language="fr-FR"
     >
       {model.type === "ADRESSAGE" ? (
-        <AdressagePage model={model} variant={variant} options={options} />
+        <AdressagePage model={model} options={options} />
       ) : (
         <CompteRenduPage model={model} variant={variant} options={options} />
       )}
