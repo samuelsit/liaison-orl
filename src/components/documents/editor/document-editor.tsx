@@ -36,6 +36,7 @@ import { EditorContext, type EditorContextValue, type EditorShared } from "./edi
 import { AdressageFields } from "./adressage-fields";
 import { CompteRenduFields } from "./compte-rendu-fields";
 import { BilanPanel, type AttachmentView } from "./bilan-panel";
+import { CompteRenduUiProvider } from "./bilan/cr-context";
 import { MotifAssistant } from "./motif-assistant";
 import { CommentAssistant } from "./comment-assistant";
 
@@ -215,10 +216,13 @@ export function DocumentEditor({
     doc.type === "ADRESSAGE" ? (
       <AdressageFields motifAssistant={!readOnly && shared.aiEnabled ? <MotifAssistant /> : null} />
     ) : (
-      <CompteRenduFields
-        bilan={<BilanPanel attachments={attachments} />}
-        commentAssistant={!readOnly && shared.aiEnabled ? <CommentAssistant attachments={attachments} /> : null}
-      />
+      // État partagé du bilan et de la rédaction du commentaire (rédaction automatique après confirmation des mesures).
+      <CompteRenduUiProvider>
+        <CompteRenduFields
+          bilan={<BilanPanel attachments={attachments} />}
+          commentAssistant={!readOnly && shared.aiEnabled ? <CommentAssistant attachments={attachments} /> : null}
+        />
+      </CompteRenduUiProvider>
     );
 
   const preview = (
