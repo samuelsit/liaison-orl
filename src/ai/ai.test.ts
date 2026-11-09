@@ -20,6 +20,28 @@ describe("schéma d'extraction", () => {
     expect(back.freeField.speechAided.srt).toEqual({ value: 35, confidence: "medium" });
   });
 
+  it("lit les seuils appareillés par oreille et signale une feuille entièrement appareillée", () => {
+    const a = emptyAudiometry();
+    a.right.aided = { "1000": { value: 25, confidence: "high" } };
+    a.left.aided = { "1000": { value: 30, confidence: "medium" } };
+    const raw = fromAudiometry(a);
+    expect(raw.aided_sheet).toBe(false);
+    expect(raw.thresholds).toEqual([
+      { curve: "right_aided", frequency_hz: 1000, threshold_db: 25, no_response: false, confidence: "high" },
+      { curve: "left_aided", frequency_hz: 1000, threshold_db: 30, no_response: false, confidence: "medium" },
+    ]);
+    const parsed = rawExtractionSchema.parse({ ...raw, aided_sheet: true });
+    expect(parsed.aided_sheet).toBe(true);
+    expect(toAudiometry(parsed).right.aided).toEqual(a.right.aided);
+  });
+
+  it("accepte les marqueurs de la version 1, sans aided_sheet", () => {
+    const { aided_sheet: _omitted, ...v1 } = fromAudiometry(emptyAudiometry());
+    const parsed = rawExtractionSchema.safeParse(v1);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.aided_sheet).toBe(false);
+  });
+
   it("rejette un score d'intelligibilité hors limites (non détecté plutôt qu'inventé)", () => {
     const a = emptyAudiometry();
     const raw = fromAudiometry(a);

@@ -7,7 +7,7 @@ import { FREQUENCIES, emptyAudiometry, type Audiometry, type Curve, type FreqKey
  * simplement absente des listes, ce qui vaut « non détecté ».
  */
 
-const CURVES = ["right_air", "right_bone", "left_air", "left_bone", "free_field_unaided", "free_field_aided"] as const;
+const CURVES = ["right_air", "right_bone", "right_aided", "left_air", "left_bone", "left_aided", "free_field_unaided", "free_field_aided"] as const;
 const SPEECH_CONDITIONS = ["right", "left", "free_field_unaided", "free_field_aided"] as const;
 const SPEECH_MEASURES = ["srt_db", "max_score_percent", "max_score_level_db"] as const;
 const NOISE_MEASURES = ["unaided_snr_db", "aided_snr_db", "unaided_score_percent", "aided_score_percent"] as const;
@@ -16,9 +16,11 @@ const CONFIDENCES = ["high", "medium", "low"] as const;
 export const EXTRACTION_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["is_audiogram", "thresholds", "speech", "noise_test_name", "noise", "notes"],
+  required: ["is_audiogram", "aided_sheet", "thresholds", "speech", "noise_test_name", "noise", "notes"],
   properties: {
     is_audiogram: { type: "boolean" },
+    /** Feuille entièrement mesurée avec appareils (titre « avec appareils », « appareillé », « gain prothétique »). */
+    aided_sheet: { type: "boolean" },
     thresholds: {
       type: "array",
       items: {
@@ -71,6 +73,8 @@ export const EXTRACTION_JSON_SCHEMA = {
 const zConf = z.enum(CONFIDENCES);
 export const rawExtractionSchema = z.object({
   is_audiogram: z.boolean(),
+  // Facultatif à la lecture : les marqueurs des bilans fictifs de la version 1 ne le portent pas.
+  aided_sheet: z.boolean().default(false),
   thresholds: z
     .array(
       z.object({
@@ -93,8 +97,10 @@ const FREQ_SET = new Set<number>(FREQUENCIES);
 const CURVE_PATH: Record<(typeof CURVES)[number], [keyof Audiometry, string]> = {
   right_air: ["right", "air"],
   right_bone: ["right", "bone"],
+  right_aided: ["right", "aided"],
   left_air: ["left", "air"],
   left_bone: ["left", "bone"],
+  left_aided: ["left", "aided"],
   free_field_unaided: ["freeField", "unaided"],
   free_field_aided: ["freeField", "aided"],
 };
@@ -163,5 +169,5 @@ export function fromAudiometry(a: Audiometry): RawExtraction {
     add("unaided_score_percent", a.noise.unaidedScore);
     add("aided_score_percent", a.noise.aidedScore);
   }
-  return { is_audiogram: true, thresholds, speech, noise_test_name: a.noise?.testName ?? "", noise, notes: a.notes ?? "" };
+  return { is_audiogram: true, aided_sheet: false, thresholds, speech, noise_test_name: a.noise?.testName ?? "", noise, notes: a.notes ?? "" };
 }
