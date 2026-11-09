@@ -15,7 +15,7 @@ import {
   yForDb,
   type ChartSeries,
 } from "@/lib/audiology/chart";
-import type { GainResult } from "@/lib/audiology/calculations";
+import type { GainPoint, GainResult } from "@/lib/audiology/calculations";
 import type { Audiometry, FreqKey } from "@/lib/schemas/audiometry";
 import { CONTENT_WIDTH, TYPE, WEIGHT, mm } from "../tokens";
 import { TABULAR, labelStyle, text, type DocTheme } from "./theme";
@@ -32,14 +32,16 @@ interface PlotSeries extends ChartSeries {
 
 /** Courbes de l'audiogramme : CA reliées, CO en symboles seuls, champ libre sans / avec appareils. */
 export function audiogramSeries(a: Audiometry): PlotSeries[] {
-  const [rightAir, rightBone] = earSeries(a, "right");
-  const [leftAir, leftBone] = earSeries(a, "left");
+  const [rightAir, rightBone, rightAided] = earSeries(a, "right");
+  const [leftAir, leftBone, leftAided] = earSeries(a, "left");
   const [unaided, aided] = freeFieldSeries(a);
   return [
     { ...rightAir!, label: L.rightAir, joined: true },
     { ...leftAir!, label: L.leftAir, joined: true },
     { ...rightBone!, label: L.rightBone, joined: false },
     { ...leftBone!, label: L.leftBone, joined: false },
+    { ...rightAided!, label: L.rightAided, joined: true },
+    { ...leftAided!, label: L.leftAided, joined: true },
     { ...unaided!, label: L.unaided, joined: true },
     { ...aided!, label: L.aided, joined: true },
   ].filter((s) => s.points.length > 0);
@@ -265,22 +267,31 @@ export function Audiogram({
 
 const nf = (v: number) => v.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
 
-/** Tableau du gain prothétique par fréquence (sans / avec / gain), moyenne en SemiBold. */
-export function GainTable({ theme, gain }: { theme: DocTheme; gain: GainResult }) {
-  const cols = gain.perFrequency;
+interface GainBlockProps {
+  theme: DocTheme;
+  title?: string;
+  cols: GainPoint[];
+  meanFrequencies: FreqKey[];
+  meanGain: number | null;
+  labels: { unaided: string; aided: string };
+  note?: string;
+}
+
+/** Un tableau de gain (sans / avec / gain) par fréquence, moyenne en SemiBold. */
+function GainBlock({ theme, title, cols, meanFrequencies, meanGain, labels, note }: GainBlockProps) {
   if (cols.length === 0) return null;
   const T = pdfFr.compteRendu.gainTable;
-  const labelW = 46;
+  const labelW = 50;
   const meanW = 22;
   const colW = (CONTENT_WIDTH - labelW - meanW) / cols.length;
-  const mean = (pick: (p: (typeof cols)[number]) => number) => {
-    const used = cols.filter((p) => gain.meanFrequencies.includes(p.freq));
+  const mean = (pick: (p: GainPoint) => number) => {
+    const used = cols.filter((p) => meanFrequencies.includes(p.freq));
     return used.length ? nf(Math.round((used.reduce((s, p) => s + pick(p), 0) / used.length) * 10) / 10) : "—";
   };
   const rows: { label: string; values: string[]; mean: string }[] = [
-    { label: T.unaided, values: cols.map((p) => nf(p.unaided)), mean: mean((p) => p.unaided) },
-    { label: T.aided, values: cols.map((p) => nf(p.aided)), mean: mean((p) => p.aided) },
-    { label: T.gain, values: cols.map((p) => nf(p.gain)), mean: gain.mean === null ? "—" : nf(gain.mean) },
+    { label: labels.unaided, values: cols.map((p) => nf(p.unaided)), mean: mean((p) => p.unaided) },
+    { label: labels.aided, values: cols.map((p) => nf(p.aided)), mean: mean((p) => p.aided) },
+    { label: T.gain, values: cols.map((p) => nf(p.gain)), mean: meanGain === null ? "—" : nf(meanGain) },
   ];
   const cell = {
     ...text(theme, TYPE.body, WEIGHT.regular, theme.t.ink, 1.2),
@@ -296,6 +307,7 @@ export function GainTable({ theme, gain }: { theme: DocTheme; gain: GainResult }
   };
   return (
     <View wrap={false} style={{ marginTop: mm(2) }}>
+      {title ? <Text style={{ ...text(theme, TYPE.body, WEIGHT.semibold, theme.t.ink, 1.3), marginBottom: mm(1) }}>{title}</Text> : null}
       <View style={{ ...rowStyle, borderBottomColor: theme.t.label }}>
         <Text style={{ ...labelStyle(theme), width: mm(labelW) }}>{T.frequency}</Text>
         {cols.map((p) => (
@@ -318,11 +330,57 @@ export function GainTable({ theme, gain }: { theme: DocTheme; gain: GainResult }
           <Text style={{ ...cell, width: mm(meanW), fontWeight: WEIGHT.semibold }}>{r.mean}</Text>
         </View>
       ))}
-      {gain.meanFrequencies.length ? (
+      {meanFrequencies.length || note ? (
         <Text style={{ ...text(theme, TYPE.footer, WEIGHT.regular, theme.t.label, 1.35), marginTop: mm(1) }}>
-          {T.meanNote(gain.meanFrequencies.map(hz).join(", "))}
+          {[meanFrequencies.length ? T.meanNote(meanFrequencies.map(hz).join(", ")) : "", note ?? ""].filter(Boolean).join(" ")}
         </Text>
       ) : null}
+    </View>
+  );
+}
+
+/** Vrai si le gain comporte au moins un tableau à imprimer (binaural ou par oreille). */
+export function hasGainTable(gain: GainResult): boolean {
+  return gain.perFrequency.length > 0 || Boolean(gain.perEar.right) || Boolean(gain.perEar.left);
+}
+
+/**
+ * Gain prothétique : tableau binaural (champ libre sans / avec appareils) puis, s'ils
+ * existent, un tableau par oreille appareillée avec la référence utilisée.
+ */
+export function GainTable({ theme, gain }: { theme: DocTheme; gain: GainResult }) {
+  const T = pdfFr.compteRendu.gainTable;
+  const ears = (["right", "left"] as const).filter((e) => gain.perEar[e]);
+  const several = (gain.perFrequency.length ? 1 : 0) + ears.length > 1;
+  if (!hasGainTable(gain)) return null;
+  return (
+    <View>
+      {gain.perFrequency.length ? (
+        <GainBlock
+          theme={theme}
+          title={several ? T.binaural : undefined}
+          cols={gain.perFrequency}
+          meanFrequencies={gain.meanFrequencies}
+          meanGain={gain.meanSource === "free_field" ? gain.mean : null}
+          labels={{ unaided: T.unaided, aided: T.aided }}
+        />
+      ) : null}
+      {ears.map((e) => {
+        const g = gain.perEar[e]!;
+        return (
+          <View key={e} style={{ marginTop: several ? mm(3) : 0 }}>
+            <GainBlock
+              theme={theme}
+              title={T.ear[e]}
+              cols={g.perFrequency}
+              meanFrequencies={g.meanFrequencies}
+              meanGain={g.mean}
+              labels={{ unaided: T.reference[g.reference], aided: T.aidedEar }}
+              note={T.referenceNote[g.reference]}
+            />
+          </View>
+        );
+      })}
     </View>
   );
 }

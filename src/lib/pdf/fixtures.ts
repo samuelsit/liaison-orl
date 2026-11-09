@@ -75,6 +75,16 @@ function rightEarOnly(): Audiometry {
   return a;
 }
 
+/** Gain prothétique mesuré par oreille (feuille « avec appareils ») sans champ libre sans appareil : référence au casque. */
+function perEarAided(): Audiometry {
+  const a = sampleAudiometry();
+  a.freeField.unaided = {};
+  a.freeField.aided = {};
+  a.right.aided = curve({ "500": 25, "1000": 25, "2000": 30, "4000": 40 });
+  a.left.aided = curve({ "500": 25, "1000": 30, "2000": 30, "4000": 45 });
+  return a;
+}
+
 let signaturePromise: Promise<string> | null = null;
 /** Signature manuscrite fictive (tracé vectoriel converti en PNG). */
 export function sampleSignature(): Promise<string> {
@@ -236,6 +246,15 @@ export async function pdfFixtures(): Promise<PdfFixture[]> {
           deviceModel: "Audéo Sphere Infinio 90 – R (écouteur M, dôme ouvert)",
           comments: longComment,
         },
+      },
+    },
+    {
+      name: "compte-rendu-gain-par-oreille",
+      model: {
+        ...base,
+        type: "COMPTE_RENDU",
+        audiometry: perEarAided(),
+        data: { ...fullCr, comments: "Gain prothétique mesuré oreille par oreille en champ libre ; référence au casque." },
       },
     },
     {

@@ -14,7 +14,7 @@ import {
   paragraphBlocks,
   type KeyValue,
 } from "../components/blocks";
-import { Audiogram, GainTable, audiogramSeries } from "../components/audiology";
+import { Audiogram, GainTable, audiogramSeries, hasGainTable } from "../components/audiology";
 import { bodyStyle } from "../components/theme";
 import { WEIGHT, mm } from "../tokens";
 import { typo } from "../typography";
@@ -164,7 +164,7 @@ export function CompteRenduPage({
                   )}
                 </Section>
               ) : null}
-              {gain && (gain.perFrequency.length || speech.length) ? (
+              {gain && (hasGainTable(gain) || speech.length) ? (
                 <Section theme={theme} title={C.sections.gain}>
                   <GainTable theme={theme} gain={gain} />
                   {speech.length ? (
@@ -173,7 +173,7 @@ export function CompteRenduPage({
                         style={{
                           ...bodyStyle(theme),
                           fontWeight: WEIGHT.semibold,
-                          marginTop: gain.perFrequency.length ? mm(6) : 0,
+                          marginTop: hasGainTable(gain) ? mm(6) : 0,
                           marginBottom: mm(2),
                         }}
                       >
