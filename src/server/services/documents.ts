@@ -45,6 +45,7 @@ export async function createDocument(
       type === "COMPTE_RENDU"
         ? { ...(defaultDataFor(type, todayIso(), userDoc?.preferences?.learned) as object), includeAnnex: ctx.organization.settings.documents.audiogramAnnex } as DocumentData
         : defaultDataFor(type, todayIso(), userDoc?.preferences?.learned),
+    bilan: null,
     aiFields: [],
     version: 0,
     pdfKey: null,
@@ -162,7 +163,7 @@ export async function renderPreview(ctx: UserContext, id: string, input: Preview
   const { loadLiveEntities, modelFromLive, confirmedAudiometry } = await import("./pdf-model");
   const e = await loadLiveEntities(doc, input.patientId, input.prescriberId);
   if (e.patient) assertCentre(ctx.user, e.patient.centreId);
-  const audiometry = doc.type === "COMPTE_RENDU" ? await confirmedAudiometry(data, doc._id) : null;
+  const audiometry = doc.type === "COMPTE_RENDU" ? confirmedAudiometry(doc) : null;
   const { renderPdf } = await import("@/lib/pdf/render");
   return renderPdf(modelFromLive({ ...e, org: ctx.organization }, { type: doc.type, data }, { draft: true, audiometry }), variant, options);
 }
@@ -182,7 +183,7 @@ export async function validateDocument(ctx: UserContext, id: string) {
     prescriber: e.prescriber ? { email: e.prescriber.email ?? "", address: e.prescriber.address } : null,
   });
   if (!isValid(report)) return { ok: false as const, errors: report.errors, warnings: report.warnings };
-  const audiometry = doc.type === "COMPTE_RENDU" ? await confirmedAudiometry(data, doc._id) : null;
+  const audiometry = doc.type === "COMPTE_RENDU" ? confirmedAudiometry(doc) : null;
   const { renderPdf } = await import("@/lib/pdf/render");
   const live = { ...e, org: ctx.organization };
   const version = doc.version + 1;

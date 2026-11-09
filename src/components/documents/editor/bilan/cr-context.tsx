@@ -13,16 +13,21 @@ const C = crFr.comment;
 
 export type CommentStyle = "standard" | "court" | "detaille" | "technique";
 
-/** État du bilan publié par le panneau du bilan (lecture seule pour le reste du formulaire). */
+/** État du bilan fusionné publié par le panneau du bilan (lecture seule pour le reste du formulaire). */
 export interface BilanSnapshot {
-  attachmentId: string | null;
   audiometry: Audiometry | null;
   confirmed: boolean;
+  /** Horodatage du bilan fusionné (révision) ; null tant qu'il n'existe pas. */
+  updatedAt: string | null;
+  fileCount: number;
+  conflicts: number;
 }
 
 export interface CommentRunOptions {
   /** Valeurs à jour pas encore répercutées dans l'éditeur (degré proposé à la confirmation…). */
   data?: Partial<CompteRenduData>;
+  /** Révision du bilan confirmé à l'instant (pas encore publiée dans le contexte). */
+  bilanRevision?: string | null;
   /** Rédaction automatique après la confirmation des mesures. */
   auto?: boolean;
 }
@@ -35,7 +40,7 @@ interface CompteRenduUi {
   setOpenReview: (fn: (() => void) | null) => void;
   comment: {
     pending: CommentStyle | null;
-    /** Le formulaire a changé depuis la rédaction par l'IA. */
+    /** Le formulaire ou les mesures ont changé depuis la rédaction par l'IA. */
     stale: boolean;
     canRestore: boolean;
     run: (style: CommentStyle, opts?: CommentRunOptions) => Promise<boolean>;
@@ -43,7 +48,7 @@ interface CompteRenduUi {
   };
 }
 
-const EMPTY_BILAN: BilanSnapshot = { attachmentId: null, audiometry: null, confirmed: false };
+const EMPTY_BILAN: BilanSnapshot = { audiometry: null, confirmed: false, updatedAt: null, fileCount: 0, conflicts: 0 };
 
 const fallback: CompteRenduUi = {
   bilan: EMPTY_BILAN,
@@ -60,6 +65,9 @@ export function useCompteRenduUi(): CompteRenduUi {
   return useContext(Ctx) ?? fallback;
 }
 
+/** Révision du bilan qui a servi au commentaire : seules les mesures confirmées comptent. */
+const revisionOf = (b: BilanSnapshot) => (b.confirmed ? b.updatedAt : null);
+
 export function CompteRenduUiProvider({ children }: { children: ReactNode }) {
   const ed = useEditor<CompteRenduData>();
   const edRef = useRef(ed);
@@ -67,6 +75,10 @@ export function CompteRenduUiProvider({ children }: { children: ReactNode }) {
     edRef.current = ed;
   });
   const [bilan, setBilan] = useState<BilanSnapshot>(EMPTY_BILAN);
+  const bilanRef = useRef(bilan);
+  useEffect(() => {
+    bilanRef.current = bilan;
+  });
   const [openReview, setOpenReviewState] = useState<(() => void) | null>(null);
   const [pending, setPending] = useState<CommentStyle | null>(null);
   const [history, setHistory] = useState<string[]>([]);
@@ -97,7 +109,8 @@ export function CompteRenduUiProvider({ children }: { children: ReactNode }) {
       return false;
     }
     edRef.current.suggest({ comments: res.data.comment }, ["comments"]);
-    const signature = commentFactsSignature(data);
+    const revision = opts?.bilanRevision !== undefined ? opts.bilanRevision : revisionOf(bilanRef.current);
+    const signature = commentFactsSignature(data, revision);
     writeCommentFacts(e.documentId, signature);
     setRecorded(signature);
     if (previous.trim()) setHistory((h) => [...h.slice(-4), previous]);
@@ -115,7 +128,7 @@ export function CompteRenduUiProvider({ children }: { children: ReactNode }) {
     toast.success(C.previousRestored);
   }, [history]);
 
-  const stale = isCommentStale(ed.data, ed.aiFields, recorded);
+  const stale = isCommentStale(ed.data, ed.aiFields, recorded, revisionOf(bilan));
   const value = useMemo<CompteRenduUi>(
     () => ({
       bilan,

@@ -29,7 +29,7 @@ export const AUDIT_LABELS: Record<string, string> = {
   "attachment.upload": "Bilan déposé",
   "attachment.view": "Bilan consulté",
   "attachment.extract": "Bilan lu par l'IA",
-  "attachment.confirm": "Mesures confirmées",
+  "bilan.confirm": "Mesures du bilan confirmées",
   "ai.generate": "Rédaction par l'IA",
   "user.invite": "Utilisateur invité",
   "user.update": "Utilisateur modifié",

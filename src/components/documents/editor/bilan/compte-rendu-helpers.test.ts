@@ -26,6 +26,14 @@ describe("commentaire à mettre à jour", () => {
     expect(isCommentStale(after, ["comments"], null)).toBe(false);
     expect(isCommentStale({ ...after, comments: " " }, ["comments"], sig)).toBe(false);
   });
+
+  it("signale un commentaire rédigé avant une correction des mesures du bilan", () => {
+    const d = data({ comments: "Texte" });
+    const sig = commentFactsSignature(d, "2026-11-09T10:00:00.000Z");
+    expect(isCommentStale(d, ["comments"], sig, "2026-11-09T10:00:00.000Z")).toBe(false);
+    expect(isCommentStale(d, ["comments"], sig, "2026-11-09T10:05:00.000Z")).toBe(true);
+    expect(isCommentStale(d, ["comments"], sig, null)).toBe(true);
+  });
 });
 
 describe("état des sections", () => {

@@ -6,7 +6,7 @@ import { MockAiProvider } from "@/ai/mock";
 import type { AiProvider, CommentRequest } from "@/ai/types";
 import { collections } from "@/lib/db/collections";
 import { createDocument, saveDraft } from "./documents";
-import { uploadBilan, saveExtraction } from "./attachments";
+import { rebuildBilan, saveBilan, uploadBilan } from "./attachments";
 import { extractBilan, generateComment, reformulateMotif } from "./ai";
 import { createPatient } from "./patients";
 
@@ -26,7 +26,7 @@ describe("lecture du bilan (mode démo)", () => {
     const { ctx, doc } = await setup();
     const file = readFileSync("demo/bilans/bilan-durand-jeanne.pdf");
     const att = await uploadBilan(ctx, doc._id, { name: "bilan.pdf", data: file });
-    const a = await extractBilan(ctx, att._id);
+    const a = (await extractBilan(ctx, att._id)).extraction!;
     expect(a.right.air["1000"]).toEqual({ value: 45, confidence: "high" });
     expect(a.freeField.speechAided.maxScore?.value).toBe(90);
     expect(a.noise?.testName).toBe("Test de phrases dans le bruit");
@@ -38,7 +38,7 @@ describe("lecture du bilan (mode démo)", () => {
   it("conserve le marqueur des photos de démonstration malgré le nettoyage EXIF", async () => {
     const { ctx, doc } = await setup();
     const att = await uploadBilan(ctx, doc._id, { name: "photo.jpg", data: readFileSync("demo/bilans/photo-bilan-petitjean-gerard.jpg") });
-    const a = await extractBilan(ctx, att._id);
+    const a = (await extractBilan(ctx, att._id)).extraction!;
     expect(a.right.air["4000"]).toEqual({ value: 85, confidence: "low" });
   });
 
@@ -67,8 +67,9 @@ describe("rédactions pseudonymisées", () => {
   it("n'envoie aucune donnée d'identité et réinjecte le nom", async () => {
     const { ctx, patient, doc } = await setup();
     const att = await uploadBilan(ctx, doc._id, { name: "bilan.pdf", data: readFileSync("demo/bilans/bilan-durand-jeanne.pdf") });
-    const a = await extractBilan(ctx, att._id);
-    await saveExtraction(ctx, att._id, a, true);
+    await extractBilan(ctx, att._id);
+    const bilan = await rebuildBilan(ctx, doc._id);
+    await saveBilan(ctx, doc._id, bilan.audiometry, true);
     let captured: CommentRequest | null = null;
     const spy = new MockAiProvider();
     const original = spy.writeComment.bind(spy);
@@ -78,7 +79,7 @@ describe("rédactions pseudonymisées", () => {
       return { ...r, raw: { comment: `Nous avons appareillé [PATIENT]. ${(r.raw as { comment: string }).comment}` } };
     };
     setAiProvider(spy);
-    const data = { ...doc.data, attachmentId: att._id, ears: "deux", comments: "Jeanne Durand est satisfaite." };
+    const data = { ...doc.data, ears: "deux", comments: "Jeanne Durand est satisfaite." };
     await saveDraft(ctx, doc._id, { data, patientId: patient.id, prescriberId: null, aiFields: [] });
     const comment = await generateComment(ctx, doc._id, { data, patientId: patient.id, prescriberId: null, style: "standard" });
     expect(JSON.stringify(captured)).not.toMatch(/Durand|Jeanne|1946/i);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ClipboardEvent, type ComponentProps, type KeyboardEvent } from "react";
+import { createContext, useContext, useState, type ClipboardEvent, type ComponentProps, type KeyboardEvent } from "react";
 import type { Measure } from "@/lib/schemas/audiometry";
 import { fieldControlClassName } from "@/components/ui/input";
 import { fr } from "@/lib/i18n/fr";
@@ -9,6 +9,9 @@ import { cn } from "@/lib/utils";
 import { cellText, parseCell, parsePastedValues, toMeasure, type ParsedCell } from "./measure-cells";
 
 export type MeasureInputVariant = "cell" | "boxed" | "mobile";
+
+/** Noms des fichiers par identifiant de pièce jointe : infobulle « Lu dans … » sur chaque valeur fusionnée. */
+export const SourceNamesContext = createContext<Record<string, string>>({});
 
 const VARIANT_CLASS: Record<MeasureInputVariant, string> = {
   // Case de tableur : quadrillage porté par la cellule, fond transparent, anneau de focus intérieur.
@@ -52,9 +55,12 @@ export function MeasureInput({
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
+  const sourceNames = useContext(SourceNamesContext);
   const low = m?.confidence === "low";
   const medium = m?.confidence === "medium";
-  const title = m ? (low ? fr.ai.lowConfidence : medium ? fr.ai.mediumConfidence : undefined) : fr.common.notDetected;
+  const sourceName = m?.source ? sourceNames[m.source] : undefined;
+  const confidenceTitle = m ? (low ? fr.ai.lowConfidence : medium ? fr.ai.mediumConfidence : undefined) : fr.common.notDetected;
+  const title = [sourceName ? crFr.bilan.sourceTitle(sourceName) : null, confidenceTitle].filter(Boolean).join(" · ") || undefined;
   const describedBy = [low ? lowConfidenceId : medium ? mediumConfidenceId : undefined, props["aria-describedby"]].filter(Boolean).join(" ") || undefined;
 
   function commit(raw: string) {
@@ -102,6 +108,7 @@ export function MeasureInput({
         value={draft ?? cellText(m)}
         placeholder="—"
         data-confidence={m?.confidence}
+        data-source={m?.source}
         onChange={(e) => commit(e.target.value)}
         onFocus={(e) => {
           props.onFocus?.(e);

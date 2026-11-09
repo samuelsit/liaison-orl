@@ -14,8 +14,9 @@ import type { AiKind } from "@/lib/db/types";
 import type { UserContext } from "@/lib/auth/session";
 import { assertCentre } from "@/lib/auth/permissions";
 import { audiometrySchema, type Audiometry } from "@/lib/schemas/audiometry";
+import type { AttachmentDoc } from "@/lib/schemas/attachment";
 import { compteRenduDataSchema } from "@/lib/schemas/document";
-import { countMeasures } from "@/lib/audiology/calculations";
+import { countAllMeasures } from "@/lib/audiology/calculations";
 import { UserFacingError } from "@/server/actions/result";
 import { audit } from "@/server/audit";
 import { hit } from "@/server/rate-limit";
@@ -83,7 +84,12 @@ export async function prepareForVision(data: Buffer, mimeType: string): Promise<
   return { data: out, mimeType: "image/jpeg" };
 }
 
-export async function extractBilan(ctx: UserContext, attachmentId: string): Promise<Audiometry> {
+/**
+ * Lecture d'un fichier de bilan par le modèle vision. Ne touche pas au bilan fusionné du
+ * document : plusieurs fichiers peuvent être lus en parallèle, le client demande ensuite
+ * un seul recalcul de la fusion (`rebuildBilan`).
+ */
+export async function extractBilan(ctx: UserContext, attachmentId: string): Promise<AttachmentDoc> {
   await guard(ctx);
   const att = await getAttachmentForUser(ctx, attachmentId);
   const file = await storage().get(att.fileKey);
@@ -92,14 +98,13 @@ export async function extractBilan(ctx: UserContext, attachmentId: string): Prom
   try {
     const raw = await callValidated(ctx, "extraction", () => aiProvider().extract(input), rawExtractionSchema);
     const audiometry = toAudiometry(raw);
-    if (!raw.is_audiogram || countMeasures(audiometry) === 0) {
+    if (!raw.is_audiogram || countAllMeasures(audiometry) === 0) {
       throw new AiError("Aucune mesure audiométrique n'a été trouvée dans ce document.", "not_audiogram");
     }
-    await collections()
-      .attachments()
-      .updateOne({ _id: att._id }, { $set: { extraction: audiometry, extractionStatus: "done", extractionError: null, updatedAt: new Date() } });
-    await audit(actor(ctx), "attachment.extract", "attachment", att._id, { measures: countMeasures(audiometry) });
-    return audiometry;
+    const set = { extraction: audiometry, extractionStatus: "done" as const, extractionError: null, aidedSheet: raw.aided_sheet, updatedAt: new Date() };
+    await collections().attachments().updateOne({ _id: att._id }, { $set: set });
+    await audit(actor(ctx), "attachment.extract", "attachment", att._id, { measures: countAllMeasures(audiometry), aidedSheet: raw.aided_sheet });
+    return { ...att, ...set };
   } catch (err) {
     const message = err instanceof AiError ? err.message : "La lecture automatique a échoué.";
     await collections()
@@ -133,11 +138,11 @@ export async function generateComment(
   if (doc.type !== "COMPTE_RENDU") throw new UserFacingError("Document incompatible.");
   const data = compteRenduDataSchema.parse(input.data);
   const { patient, entities } = await entitiesFor(ctx, input.patientId, input.prescriberId);
+  // Seules les mesures du bilan fusionné et confirmé alimentent le commentaire.
   let audiometry: Audiometry | null = null;
-  if (data.attachmentId) {
-    const att = await collections().attachments().findOne({ _id: data.attachmentId, documentId: doc._id, confirmed: true });
-    const parsed = att?.extraction ? audiometrySchema.safeParse(att.extraction) : null;
-    audiometry = parsed?.success ? parsed.data : null;
+  if (doc.bilan?.confirmed && doc.bilan.audiometry) {
+    const parsed = audiometrySchema.safeParse(doc.bilan.audiometry);
+    audiometry = parsed.success ? parsed.data : null;
   }
   const notes = pseudonymize(data.comments, entities);
   const facts = buildCommentFacts(data, audiometry, patient ? { civility: patient.civility, birthDate: patient.birthDate } : null, notes);

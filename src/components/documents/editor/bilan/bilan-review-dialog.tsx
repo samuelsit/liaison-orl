@@ -1,24 +1,27 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowDownToLine, CheckCircle2, Loader2, XIcon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { ArrowDownToLine, CheckCircle2, ChevronDown, Loader2, TriangleAlert, XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { SegmentedControl, SegmentedControlItem } from "@/components/ui/segmented-control";
 import { Shortcut } from "@/components/ui/shortcut";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AudiometryEditor, type AudiometryEditorApi } from "@/components/audiology/audiometry-editor";
-import { countMeasures } from "@/lib/audiology/calculations";
-import { listLowConfidence } from "@/components/audiology/measure-cells";
-import type { Audiometry } from "@/lib/schemas/audiometry";
+import { countAllMeasures } from "@/lib/audiology/calculations";
+import { cellText, describeRef, listLowConfidence, refId } from "@/components/audiology/measure-cells";
+import type { Audiometry, BilanCondition, Conflict, Measure, MeasureRef } from "@/lib/schemas/audiometry";
+import type { AttachmentView } from "@/lib/schemas/attachment";
 import { fr } from "@/lib/i18n/fr";
 import { crFr } from "@/lib/i18n/compte-rendu";
 import { cn } from "@/lib/utils";
-import type { AttachmentView } from "../bilan-panel";
 import { BilanOriginalViewer } from "./bilan-original-viewer";
 import { FileChip } from "./file-chip";
 
 const R = crFr.review;
+const K = crFr.bilan.conflicts;
 
 const LG_QUERY = "(min-width: 1024px)";
 function subscribeLg(cb: () => void) {
@@ -30,17 +33,97 @@ function useIsLg() {
   return useSyncExternalStore(subscribeLg, () => window.matchMedia(LG_QUERY).matches, () => true);
 }
 
+/** Conflits entre fichiers : chaque ligne propose les lectures et la réinterprétation d'un fichier. */
+function ConflictList({
+  conflicts,
+  files,
+  readOnly,
+  onResolve,
+  onSetCondition,
+}: {
+  conflicts: Conflict[];
+  files: AttachmentView[];
+  readOnly: boolean;
+  onResolve: (ref: MeasureRef, attachmentId: string) => void;
+  onSetCondition: (attachmentId: string, condition: BilanCondition) => void;
+}) {
+  const G = crFr.grid;
+  const labels = { speechRows: G.speechRows, speechCols: G.speechCols, noiseFields: G.noiseFields };
+  const isPercent = (r: MeasureRef) => (r.kind === "speech" && r.key === "maxScore") || (r.kind === "noise" && r.key.endsWith("Score"));
+  return (
+    <Collapsible defaultOpen className="rounded-xl border border-warning-border/60 bg-warning/40">
+      <CollapsibleTrigger className="group/conf flex min-h-11 w-full items-center gap-2 rounded-xl px-4 text-left text-sm font-medium outline-none hover:bg-warning/60 focus-visible:ring-3 focus-visible:ring-ring/40">
+        <TriangleAlert className="size-4 shrink-0 text-warning-foreground" aria-hidden />
+        {K.title(conflicts.length)}
+        <ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform duration-150 group-data-[state=open]/conf:rotate-180" aria-hidden />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-3 border-t border-warning-border/40 px-4 pt-3 pb-4">
+        <p className="text-meta text-muted-foreground">{K.help}</p>
+        <ul className="space-y-3">
+          {conflicts.map((c) => {
+            const unit = isPercent(c.ref) ? "%" : "dB";
+            const all = [c.kept, ...c.others];
+            return (
+              <li key={refId(c.ref)} className="space-y-1.5">
+                <p className="text-sm font-medium">{describeRef(c.ref, labels)}</p>
+                <div className="flex flex-wrap gap-2">
+                  {all.map((cand) => {
+                    const kept = cand.attachmentId === c.kept.attachmentId;
+                    const text = cand.noResponse ? "NR" : `${cellText({ value: cand.value, confidence: cand.confidence })} ${unit}`;
+                    return (
+                      <Button
+                        key={cand.attachmentId}
+                        type="button"
+                        size="sm"
+                        variant={kept ? "default" : "outline"}
+                        disabled={readOnly}
+                        onClick={() => onResolve(c.ref, cand.attachmentId)}
+                        title={kept ? K.kept : undefined}
+                      >
+                        {K.choose(text, cand.fileName)}
+                        {kept ? <span className="sr-only"> ({K.kept})</span> : null}
+                      </Button>
+                    );
+                  })}
+                </div>
+                {!readOnly && c.ref.kind === "curve" ? (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-meta">
+                    {c.others.map((o) => {
+                      const f = files.find((x) => x.id === o.attachmentId);
+                      if (!f) return null;
+                      const aided = f.condition === "aided" || (f.condition === "auto" && f.aidedSheet);
+                      return (
+                        <button key={o.attachmentId} type="button" className="text-muted-foreground underline-offset-4 hover:underline" onClick={() => onSetCondition(f.id, aided ? "unaided" : "aided")}>
+                          {aided ? K.interpretUnaided(f.fileName) : K.interpretAided(f.fileName)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 /**
- * Vérification du bilan en plein écran : bilan d'origine à gauche, mesures et
- * audiogrammes à droite (onglets sous 1024 px). Pied fixe : valeur suivante à
- * vérifier, « Plus tard », « Confirmer les mesures » (Ctrl/⌘ + Entrée).
+ * Vérification du bilan fusionné en plein écran : fichiers d'origine à gauche (sélecteur
+ * de fichier, le fichier source de la case active est affiché), mesures et audiogrammes à
+ * droite (onglets sous 1024 px), conflits entre fichiers en tête. Pied fixe : valeur
+ * suivante à vérifier, « Plus tard », « Confirmer les mesures » (Ctrl/⌘ + Entrée).
  */
 export function BilanReviewDialog({
   open,
   onOpenChange,
-  attachment,
+  files,
   audiometry,
+  conflicts,
   onChange,
+  onResolveConflict,
+  onSetCondition,
   readOnly,
   confirmed,
   confirming,
@@ -49,9 +132,12 @@ export function BilanReviewDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  attachment: AttachmentView | null;
+  files: AttachmentView[];
   audiometry: Audiometry;
+  conflicts: Conflict[];
   onChange: (a: Audiometry) => void;
+  onResolveConflict: (ref: MeasureRef, attachmentId: string) => void;
+  onSetCondition: (attachmentId: string, condition: BilanCondition) => void;
   readOnly: boolean;
   confirmed: boolean;
   confirming: boolean;
@@ -62,12 +148,16 @@ export function BilanReviewDialog({
   const editor = useRef<AudiometryEditorApi>(null);
   const [tab, setTab] = useState<"measures" | "original">("measures");
   const [originalSeen, setOriginalSeen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(files[0]?.id ?? null);
   const low = listLowConfidence(audiometry).length;
-  const count = countMeasures(audiometry);
+  const count = countAllMeasures(audiometry);
   const confirmRef = useRef(onConfirm);
   useEffect(() => {
     confirmRef.current = onConfirm;
   });
+  const sourceNames = useMemo(() => Object.fromEntries(files.map((f) => [f.id, f.fileName])), [files]);
+  // Un fichier retiré entre-temps : repli sur le premier, sans effet.
+  const selected = files.find((f) => f.id === selectedId) ?? files[0] ?? null;
 
   // Ctrl/⌘ + Entrée confirme les mesures (et non la validation du document) tant que la vérification est ouverte.
   useEffect(() => {
@@ -83,9 +173,34 @@ export function BilanReviewDialog({
     return () => window.removeEventListener("keydown", onKey, true);
   }, [open, readOnly]);
 
+  // La case active vient d'un fichier : l'afficher à gauche.
+  const onActiveMeasure = (m: Measure | null) => {
+    if (m?.source && files.some((f) => f.id === m.source)) setSelectedId(m.source);
+  };
+
   const editorPane = (
-    <AudiometryEditor ref={editor} value={audiometry} onChange={onChange} readOnly={readOnly} />
+    <div className="space-y-6">
+      {conflicts.length ? <ConflictList conflicts={conflicts} files={files} readOnly={readOnly} onResolve={onResolveConflict} onSetCondition={onSetCondition} /> : null}
+      <AudiometryEditor ref={editor} value={audiometry} onChange={onChange} readOnly={readOnly} sourceNames={sourceNames} onActiveMeasure={onActiveMeasure} />
+    </div>
   );
+
+  const viewer = selected ? (
+    <div className="flex h-full min-h-0 flex-col">
+      {files.length > 1 ? (
+        <div className="shrink-0 border-b px-3 py-2">
+          <SegmentedControl<string> aria-label={R.fileSwitcher} value={selected.id} onValueChange={(v) => setSelectedId(v)} size="sm" fullWidth={files.length <= 3}>
+            {files.map((f) => (
+              <SegmentedControlItem key={f.id} value={f.id} className="max-w-56 min-w-0 px-2" title={f.fileName}>
+                <span className="truncate">{f.fileName}</span>
+              </SegmentedControlItem>
+            ))}
+          </SegmentedControl>
+        </div>
+      ) : null}
+      <BilanOriginalViewer key={selected.id} attachmentId={selected.id} mimeType={selected.mimeType} className="min-h-0 flex-1" />
+    </div>
+  ) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -100,7 +215,13 @@ export function BilanReviewDialog({
             <DialogTitle className="truncate text-base sm:text-lg">{readOnly ? R.readOnlyTitle : R.title}</DialogTitle>
             <DialogDescription className="truncate text-meta max-sm:sr-only">{readOnly ? R.readOnlyDescription : R.description}</DialogDescription>
           </div>
-          {attachment ? <FileChip name={attachment.fileName} size={attachment.size} mimeType={attachment.mimeType} className="max-md:hidden" /> : null}
+          {files.length === 1 && selected ? <FileChip name={selected.fileName} size={selected.size} mimeType={selected.mimeType} className="max-md:hidden" /> : null}
+          {files.length > 1 ? <span className="text-meta text-muted-foreground max-md:hidden">{crFr.bilan.filesCount(files.length)}</span> : null}
+          {conflicts.length ? (
+            <Badge tone="warning" dot>
+              {R.conflictsBadge(conflicts.length)}
+            </Badge>
+          ) : null}
           {!readOnly ? (
             low > 0 ? (
               <Badge tone="warning" dot>
@@ -121,8 +242,8 @@ export function BilanReviewDialog({
         </header>
 
         {isLg ? (
-          <div className={cn("grid min-h-0 flex-1", attachment ? "grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] divide-x" : "grid-cols-1")}>
-            {attachment ? <BilanOriginalViewer attachmentId={attachment.id} mimeType={attachment.mimeType} className="h-full" /> : null}
+          <div className={cn("grid min-h-0 flex-1", viewer ? "grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] divide-x" : "grid-cols-1")}>
+            {viewer}
             <div className="scroll-thin min-h-0 overflow-y-auto px-5 pt-5 pb-8">{editorPane}</div>
           </div>
         ) : (
@@ -134,20 +255,20 @@ export function BilanReviewDialog({
             }}
             className="flex min-h-0 flex-1 flex-col gap-0"
           >
-            {attachment ? (
+            {viewer ? (
               <div className="shrink-0 px-4 pt-3">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="measures">{R.tabMeasures}</TabsTrigger>
-                  <TabsTrigger value="original">{R.tabOriginal}</TabsTrigger>
+                  <TabsTrigger value="original">{files.length > 1 ? R.tabOriginalCount(files.length) : R.tabOriginal}</TabsTrigger>
                 </TabsList>
               </div>
             ) : null}
             <TabsContent value="measures" className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-8">
               {editorPane}
             </TabsContent>
-            {attachment ? (
+            {viewer ? (
               <TabsContent value="original" forceMount className="min-h-0 flex-1 data-[state=inactive]:hidden">
-                {originalSeen ? <BilanOriginalViewer attachmentId={attachment.id} mimeType={attachment.mimeType} className="h-full" /> : null}
+                {originalSeen ? viewer : null}
               </TabsContent>
             ) : null}
           </Tabs>
@@ -187,7 +308,7 @@ export function BilanReviewDialog({
                     {R.later}
                   </Button>
                 </DialogClose>
-                <Button type="button" onClick={onConfirm} disabled={confirming || !attachment} data-testid="confirm-measures" className="max-sm:flex-1">
+                <Button type="button" onClick={onConfirm} disabled={confirming || (files.length === 0 && count === 0)} data-testid="confirm-measures" className="max-sm:flex-1">
                   {confirming ? <Loader2 className="animate-spin" aria-hidden /> : <CheckCircle2 aria-hidden />}
                   {confirmed ? R.done : R.confirm}
                   <Shortcut keys={["mod", "enter"]} className="ml-1 max-lg:hidden" />

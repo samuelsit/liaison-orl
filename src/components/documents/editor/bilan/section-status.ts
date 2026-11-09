@@ -6,7 +6,8 @@ export type CrSectionId = "identity" | "bilan" | "patient" | "device" | "results
 /** Champs du formulaire par section (erreurs de validation et suggestions de l'IA). */
 export const CR_SECTION_FIELDS: Record<CrSectionId, readonly string[]> = {
   identity: ["patientId", "prescriberId", "patientBirthDate", "reportDate", "prescriptionDate"],
-  bilan: ["attachmentId"],
+  // Le bilan fusionné vit hors de `data` : son état vient du contexte (confirmé ou non).
+  bilan: [],
   patient: ["degree", "ears", "degreeRule"],
   device: ["deviceType", "deviceBrand", "deviceBrandOther", "deviceModel", "pricePerDevice", "deviceClass", "rechargeable", "customEarmolds"],
   results: ["wearDuration", "wearHoursPerDay", "motivation", "handling"],

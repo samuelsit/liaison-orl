@@ -34,7 +34,7 @@ export type AuditAction =
   | "attachment.upload"
   | "attachment.view"
   | "attachment.extract"
-  | "attachment.confirm"
+  | "bilan.confirm"
   | "ai.generate"
   | "user.invite"
   | "user.update"

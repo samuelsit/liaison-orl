@@ -37,7 +37,6 @@ export function emptyCompteRendu(today: string): CompteRenduData {
     motivation: null,
     handling: null,
     comments: "",
-    attachmentId: null,
     degreeRule: null,
     includeAnnex: true,
   };

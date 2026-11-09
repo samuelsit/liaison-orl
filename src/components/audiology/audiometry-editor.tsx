@@ -4,7 +4,7 @@ import { useCallback, useId, useImperativeHandle, useRef, useState, type Ref } f
 import { Info } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { earSeries, freeFieldSeries } from "@/lib/audiology/chart";
-import type { Audiometry, FreqKey } from "@/lib/schemas/audiometry";
+import type { Audiometry, FreqKey, Measure } from "@/lib/schemas/audiometry";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { fr } from "@/lib/i18n/fr";
 import { crFr } from "@/lib/i18n/compte-rendu";
@@ -16,6 +16,7 @@ import { earTokens } from "./ear-tokens";
 import {
   earGainBands,
   gainBands,
+  getCurve,
   hasIntermediateValues,
   INTERMEDIATE_FREQS,
   listLowConfidence,
@@ -25,6 +26,7 @@ import {
   visibleFrequencies,
   type CurvePath,
 } from "./measure-cells";
+import { SourceNamesContext } from "./measure-input";
 import { MobileAudiometryEntry, segmentOf, type MobileSegment } from "./mobile-audiometry-entry";
 
 const G = crFr.grid;
@@ -45,19 +47,29 @@ export function AudiometryEditor({
   readOnly,
   ref,
   className,
+  sourceNames,
+  onActiveMeasure,
 }: {
   value: Audiometry;
   onChange: (a: Audiometry) => void;
   readOnly?: boolean;
   ref?: Ref<AudiometryEditorApi>;
   className?: string;
+  /** Noms des fichiers par identifiant : infobulle « Lu dans … » sur chaque valeur. */
+  sourceNames?: Record<string, string>;
+  /** Mesure active (case du tableau des seuils au focus), pour afficher le fichier d'origine. */
+  onActiveMeasure?: (m: Measure | null) => void;
 }) {
   const isMobile = useIsMobile();
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
   const [showIntermediate, setShowIntermediate] = useState(() => hasIntermediateValues(value));
   const [segment, setSegment] = useState<MobileSegment>("right");
-  const [activeCell, setActiveCell] = useState<{ path: CurvePath; freq: FreqKey } | null>(null);
+  const [activeCell, setActiveCellState] = useState<{ path: CurvePath; freq: FreqKey } | null>(null);
+  const setActiveCell = (cell: { path: CurvePath; freq: FreqKey } | null) => {
+    setActiveCellState(cell);
+    onActiveMeasure?.(cell ? (getCurve(value, cell.path)[cell.freq] ?? null) : null);
+  };
   const freqs = visibleFrequencies(showIntermediate);
   const confidenceIds = { low: `${id}-low`, medium: `${id}-medium` };
   const highlight: AudiogramPointRef | null = activeCell ? { seriesKey: pathToSeriesKey(activeCell.path), freq: Number(activeCell.freq) } : null;
@@ -117,6 +129,7 @@ export function AudiometryEditor({
 
   if (isMobile) {
     return (
+      <SourceNamesContext.Provider value={sourceNames ?? EMPTY_NAMES}>
       <div ref={root} className={cn(earTokens, "space-y-6", className)}>
         {confidenceTexts}
         {notes}
@@ -134,10 +147,12 @@ export function AudiometryEditor({
         />
         <AudiometryResults value={value} variant="compact" />
       </div>
+      </SourceNamesContext.Provider>
     );
   }
 
   return (
+    <SourceNamesContext.Provider value={sourceNames ?? EMPTY_NAMES}>
     <div ref={root} className={cn(earTokens, "space-y-8", className)}>
       {confidenceTexts}
       <div className="grid gap-x-6 gap-y-6 sm:grid-cols-2">
@@ -195,5 +210,8 @@ export function AudiometryEditor({
 
       <AudiometryResults value={value} />
     </div>
+    </SourceNamesContext.Provider>
   );
 }
+
+const EMPTY_NAMES: Record<string, string> = {};

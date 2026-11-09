@@ -1,7 +1,7 @@
 import type { Audiometry, Curve, FreqKey, Measure } from "@/lib/schemas/audiometry";
 import { FREQ_KEYS, MAIN_FREQUENCIES } from "@/lib/schemas/audiometry";
 import { gainReference } from "@/lib/audiology/calculations";
-import { CURVE_PATHS, getCurve, setCurveMeasure, type CurvePath, type EarGroup } from "@/lib/audiology/refs";
+import { CURVE_PATHS, getCurve, setCurveMeasure, type CurvePath, type EarGroup, type MeasureRef, type NoiseKey, type SpeechKey, type SpeechTarget } from "@/lib/audiology/refs";
 
 /*
  * Modèle d'affichage de l'audiométrie (tableau de correction, saisie mobile,
@@ -219,6 +219,13 @@ export function formatNumber(v: number): string {
 /** Nombre signé (« +20 », « −3 », « 0 »). */
 export function formatSigned(v: number): string {
   return `${v > 0 ? "+" : ""}${formatNumber(v)}`;
+}
+
+/** Libellé lisible d'une référence de mesure (« OD — aérienne · 1 kHz », « Champ libre avec · Seuil 50 % »). */
+export function describeRef(r: MeasureRef, labels: { speechRows: Record<SpeechTarget, string>; speechCols: Record<SpeechKey, { short: string }>; noiseFields: Record<NoiseKey, string> }): string {
+  if (r.kind === "curve") return `${GRID_ROWS.find((row) => row.path === r.path)?.label ?? r.path} · ${freqLong(r.freq)}`;
+  if (r.kind === "speech") return `${labels.speechRows[r.target]} · ${labels.speechCols[r.key].short}`;
+  return labels.noiseFields[r.key];
 }
 
 /** Libellé lisible d'une fréquence : « 750 Hz », « 1 kHz », « 1,5 kHz ». */

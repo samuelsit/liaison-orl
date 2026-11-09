@@ -244,7 +244,7 @@ export async function pdfFixtures(): Promise<PdfFixture[]> {
         ...base,
         type: "COMPTE_RENDU",
         audiometry: null,
-        data: { ...fullCr, includeAnnex: true, attachmentId: null },
+        data: { ...fullCr, includeAnnex: true },
       },
     },
     {

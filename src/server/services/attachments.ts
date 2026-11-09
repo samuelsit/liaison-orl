@@ -2,33 +2,32 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { collections } from "@/lib/db/collections";
-import type { AttachmentDoc } from "@/lib/db/types";
+import type { AttachmentDoc, DocumentDoc } from "@/lib/db/types";
 import type { UserContext } from "@/lib/auth/session";
 import { assertCentre } from "@/lib/auth/permissions";
-import { ACCEPTED_BILAN_TYPES, MAX_BILAN_BYTES } from "@/lib/schemas/attachment";
-import { audiometrySchema, type Audiometry } from "@/lib/schemas/audiometry";
+import { ACCEPTED_BILAN_TYPES, MAX_BILAN_BYTES, MAX_BILANS_PER_DOCUMENT, type AttachmentView } from "@/lib/schemas/attachment";
+import { audiometrySchema, bilanConditionSchema, type Audiometry, type BilanCondition, type Conflict } from "@/lib/schemas/audiometry";
+import type { BilanView, DocumentBilan } from "@/lib/schemas/document";
+import { countAllMeasures } from "@/lib/audiology/calculations";
+import { mergeExtractions, type MergeSource } from "@/lib/audiology/merge";
+import { getMeasure } from "@/lib/audiology/refs";
 import { UserFacingError } from "@/server/actions/result";
 import { DEMO_MARKER, readDemoMarker } from "@/ai/mock";
 import { audit } from "@/server/audit";
 import { actor, getDocumentForUser } from "./documents";
 import { storage, storageKeys } from "./storage";
 
+export type { AttachmentView };
+
 const EXT: Record<string, string> = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
-export interface AttachmentView {
-  id: string;
-  fileName: string;
-  mimeType: string;
-  size: number;
-  extractionStatus: AttachmentDoc["extractionStatus"];
-  extractionError: string | null;
-  confirmed: boolean;
-  createdAt: string;
-  extraction: Audiometry | null;
+function parseAudiometry(raw: unknown): Audiometry | null {
+  if (!raw) return null;
+  const parsed = audiometrySchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
 }
 
 export function toAttachmentView(a: AttachmentDoc): AttachmentView {
-  const parsed = a.extraction ? audiometrySchema.safeParse(a.extraction) : null;
   return {
     id: a._id,
     fileName: a.fileName,
@@ -36,10 +35,16 @@ export function toAttachmentView(a: AttachmentDoc): AttachmentView {
     size: a.size,
     extractionStatus: a.extractionStatus,
     extractionError: a.extractionError,
-    confirmed: a.confirmed,
+    aidedSheet: a.aidedSheet ?? false,
+    condition: a.condition ?? "auto",
     createdAt: a.createdAt.toISOString(),
-    extraction: parsed?.success ? parsed.data : null,
+    extraction: parseAudiometry(a.extraction),
   };
+}
+
+export function toBilanView(b: DocumentBilan | null): BilanView | null {
+  if (!b) return null;
+  return { audiometry: parseAudiometry(b.audiometry), conflicts: b.conflicts ?? [], confirmed: b.confirmed, updatedAt: b.updatedAt.toISOString() };
 }
 
 /** Vérifie la signature binaire du fichier (et pas seulement le type annoncé). */
@@ -56,6 +61,10 @@ export async function uploadBilan(ctx: UserContext, documentId: string, file: { 
   if (doc.type !== "COMPTE_RENDU") throw new UserFacingError("Le bilan auditif se joint à un compte rendu d'appareillage.");
   if (doc.status !== "BROUILLON") throw new UserFacingError("Rouvrez le document pour joindre un bilan.");
   if (file.data.length > MAX_BILAN_BYTES) throw new UserFacingError("Fichier trop volumineux (4 Mo maximum). Exportez le bilan en PDF ou reprenez la photo.");
+  const existing = await collections().attachments().countDocuments({ documentId: doc._id });
+  if (existing >= MAX_BILANS_PER_DOCUMENT) {
+    throw new UserFacingError(`Au plus ${MAX_BILANS_PER_DOCUMENT} fichiers par compte rendu : retirez un fichier avant d'en ajouter un autre.`);
+  }
   const mime = sniffMime(file.data);
   if (!mime) throw new UserFacingError("Format non reconnu : déposez un PDF ou une image (JPEG, PNG, WebP).");
   let data = file.data;
@@ -84,9 +93,8 @@ export async function uploadBilan(ctx: UserContext, documentId: string, file: { 
     extraction: null,
     extractionStatus: "pending",
     extractionError: null,
-    confirmed: false,
-    confirmedAt: null,
-    confirmedBy: null,
+    aidedSheet: false,
+    condition: "auto",
     createdBy: ctx.user.id,
     createdAt: now,
     updatedAt: now,
@@ -103,38 +111,82 @@ export async function getAttachmentForUser(ctx: UserContext, id: string): Promis
   return a;
 }
 
-/** Enregistre les mesures corrigées ; `confirm` les rattache au compte rendu. */
-export async function saveExtraction(ctx: UserContext, id: string, raw: unknown, confirm: boolean): Promise<AttachmentDoc> {
-  const att = await getAttachmentForUser(ctx, id);
-  const doc = await getDocumentForUser(ctx, att.documentId);
-  if (doc.status !== "BROUILLON") throw new UserFacingError("Rouvrez le document pour modifier les mesures.");
-  const extraction = audiometrySchema.parse(raw);
+async function requireDraft(ctx: UserContext, documentId: string, action: string): Promise<DocumentDoc> {
+  const doc = await getDocumentForUser(ctx, documentId);
+  if (doc.type !== "COMPTE_RENDU") throw new UserFacingError("Le bilan auditif se joint à un compte rendu d'appareillage.");
+  if (doc.status !== "BROUILLON") throw new UserFacingError(`Rouvrez le document pour ${action}.`);
+  return doc;
+}
+
+/**
+ * Recalcule le bilan fusionné du document à partir de tous les fichiers lus, en
+ * conservant les valeurs saisies à la main. Les fichiers ayant changé, la
+ * confirmation est levée : l'audioprothésiste revérifie avant de continuer.
+ */
+export async function rebuildBilan(ctx: UserContext, documentId: string): Promise<DocumentBilan> {
+  const doc = await requireDraft(ctx, documentId, "modifier le bilan");
+  const attachments = await collections().attachments().find({ documentId: doc._id }).sort({ createdAt: 1 }).toArray();
+  const sources: MergeSource[] = [];
+  for (const a of attachments) {
+    const audiometry = a.extractionStatus === "done" || a.extractionStatus === "manual" ? parseAudiometry(a.extraction) : null;
+    if (audiometry) sources.push({ id: a._id, fileName: a.fileName, createdAt: a.createdAt, audiometry, condition: a.condition ?? "auto", aidedSheet: a.aidedSheet ?? false });
+  }
+  const previous = parseAudiometry(doc.bilan?.audiometry);
+  const merged = mergeExtractions(sources, previous);
   const now = new Date();
-  const set: Partial<AttachmentDoc> = {
-    extraction,
-    extractionStatus: att.extractionStatus === "pending" || att.extractionStatus === "failed" ? "manual" : att.extractionStatus,
+  const bilan: DocumentBilan = {
+    audiometry: sources.length || (merged.audiometry && countAllMeasures(merged.audiometry) > 0) ? merged.audiometry : null,
+    conflicts: merged.conflicts,
+    confirmed: false,
+    confirmedAt: null,
+    confirmedBy: null,
+    updatedAt: now,
+  };
+  await collections().documents().updateOne({ _id: doc._id, status: "BROUILLON" }, { $set: { bilan, updatedAt: now } });
+  return bilan;
+}
+
+/** Un conflit ne subsiste que si la cellule porte encore la lecture retenue (non corrigée à la main). */
+function liveConflicts(conflicts: Conflict[], audiometry: Audiometry): Conflict[] {
+  return conflicts.filter((c) => {
+    const m = getMeasure(audiometry, c.ref);
+    return Boolean(m && m.source && m.source === c.kept.attachmentId);
+  });
+}
+
+/** Enregistre les corrections du bilan fusionné ; `confirm` le valide pour le compte rendu. */
+export async function saveBilan(ctx: UserContext, documentId: string, raw: unknown, confirm: boolean): Promise<DocumentBilan> {
+  const doc = await requireDraft(ctx, documentId, "modifier les mesures");
+  const audiometry = audiometrySchema.parse(raw);
+  const now = new Date();
+  const bilan: DocumentBilan = {
+    audiometry,
+    conflicts: liveConflicts(doc.bilan?.conflicts ?? [], audiometry),
     confirmed: confirm,
     confirmedAt: confirm ? now : null,
     confirmedBy: confirm ? ctx.user.id : null,
     updatedAt: now,
   };
-  await collections().attachments().updateOne({ _id: id }, { $set: set });
-  if (confirm) {
-    await collections()
-      .documents()
-      .updateOne({ _id: doc._id }, { $set: { "data.attachmentId": id, updatedAt: now } });
-    await audit(actor(ctx), "attachment.confirm", "attachment", id, { documentId: doc._id });
-  }
-  return { ...att, ...set };
+  await collections().documents().updateOne({ _id: doc._id, status: "BROUILLON" }, { $set: { bilan, updatedAt: now } });
+  if (confirm) await audit(actor(ctx), "bilan.confirm", "document", doc._id, { measures: countAllMeasures(audiometry), conflicts: bilan.conflicts.length });
+  return bilan;
 }
 
-export async function deleteAttachment(ctx: UserContext, id: string) {
+/** Interprétation d'un fichier (automatique / sans appareil / avec appareils), puis recalcul de la fusion. */
+export async function setAttachmentCondition(ctx: UserContext, id: string, condition: unknown): Promise<{ attachment: AttachmentDoc; bilan: DocumentBilan }> {
   const att = await getAttachmentForUser(ctx, id);
-  const doc = await getDocumentForUser(ctx, att.documentId);
-  if (doc.status !== "BROUILLON") throw new UserFacingError("Rouvrez le document pour retirer le bilan.");
+  const parsed = bilanConditionSchema.parse(condition) as BilanCondition;
+  await requireDraft(ctx, att.documentId, "modifier le bilan");
+  const now = new Date();
+  await collections().attachments().updateOne({ _id: id }, { $set: { condition: parsed, updatedAt: now } });
+  const bilan = await rebuildBilan(ctx, att.documentId);
+  return { attachment: { ...att, condition: parsed, updatedAt: now }, bilan };
+}
+
+export async function deleteAttachment(ctx: UserContext, id: string): Promise<DocumentBilan> {
+  const att = await getAttachmentForUser(ctx, id);
+  await requireDraft(ctx, att.documentId, "retirer un fichier du bilan");
   await storage().delete(att.fileKey).catch(() => undefined);
   await collections().attachments().deleteOne({ _id: id });
-  if ((doc.data as { attachmentId?: string | null }).attachmentId === id) {
-    await collections().documents().updateOne({ _id: doc._id }, { $set: { "data.attachmentId": null, updatedAt: new Date() } });
-  }
+  return rebuildBilan(ctx, att.documentId);
 }

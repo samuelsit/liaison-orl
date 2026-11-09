@@ -11,7 +11,7 @@ import { audit } from "@/server/audit";
 import { actor, getDocumentForUser } from "@/server/services/documents";
 import { toPatientView } from "@/server/services/patients";
 import { toPrescriberView } from "@/server/services/prescribers";
-import { toAttachmentView } from "@/server/services/attachments";
+import { toAttachmentView, toBilanView } from "@/server/services/attachments";
 import { UserFacingError } from "@/server/actions/result";
 import { ForbiddenError } from "@/lib/auth/permissions";
 
@@ -32,7 +32,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     doc.patientId ? collections().patients().findOne({ _id: doc.patientId, organizationId: doc.organizationId }) : null,
     doc.prescriberId ? collections().prescribers().findOne({ _id: doc.prescriberId, organizationId: doc.organizationId }) : null,
     collections().users().findOne({ _id: doc.authorId, organizationId: doc.organizationId }, { projection: { firstName: 1, lastName: 1 } }),
-    collections().attachments().find({ documentId: doc._id, organizationId: doc.organizationId }).sort({ createdAt: -1 }).toArray(),
+    collections().attachments().find({ documentId: doc._id, organizationId: doc.organizationId }).sort({ createdAt: 1 }).toArray(),
   ]);
   const settings = ctx.organization.settings;
   return (
@@ -66,6 +66,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         canDelete: ctx.user.role !== "assistant" || doc.authorId === ctx.user.id,
       }}
       attachments={attachments.map(toAttachmentView)}
+      bilan={doc.type === "COMPTE_RENDU" ? toBilanView(doc.bilan) : null}
     />
   );
 }

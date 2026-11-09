@@ -32,6 +32,8 @@ export interface EditorContextValue<D extends DocumentData = DocumentData> {
   acceptAi: (field: string) => void;
   setPatient: (p: PatientView | null, prescriber?: PrescriberView | null) => void;
   setPrescriber: (p: PrescriberView | null) => void;
+  /** Force un nouveau rendu de l'aperçu PDF quand une donnée hors formulaire change (bilan fusionné confirmé). */
+  refreshPreview: () => void;
 }
 
 export const EditorContext = createContext<EditorContextValue | null>(null);

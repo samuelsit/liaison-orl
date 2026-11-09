@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { audiometrySchema, conflictSchema, type Audiometry, type Conflict } from "./audiometry";
 import { idSchema, isoDateSchema, optionalIsoDate } from "./common";
 
 export const DOCUMENT_TYPES = ["ADRESSAGE", "COMPTE_RENDU"] as const;
@@ -73,8 +74,6 @@ export const compteRenduDataSchema = z.object({
   motivation: z.enum(MOTIVATIONS).nullable().default(null),
   handling: z.enum(HANDLINGS).nullable().default(null),
   comments: z.string().max(2500).default(""),
-  /** Bilan auditif joint (pièce jointe) dont sont issues les mesures. */
-  attachmentId: idSchema.nullable().default(null),
   /** Règle de calcul affichée pour le degré de surdité. */
   degreeRule: z.string().max(400).nullable().default(null),
   /** Inclure l'audiogramme redessiné et le gain prothétique dans le compte rendu. */
@@ -86,6 +85,32 @@ export type DocumentData = AdressageData | CompteRenduData;
 
 export function dataSchemaFor(type: DocumentType) {
   return type === "ADRESSAGE" ? adressageDataSchema : compteRenduDataSchema;
+}
+
+/* ---------- Bilan fusionné du compte rendu ---------- */
+
+/**
+ * Audiométrie consolidée à partir de tous les fichiers joints, hors de `data` : la
+ * sauvegarde automatique du formulaire remplace `data` en bloc et ne doit jamais
+ * écraser une fusion ni des corrections. Recalculée quand les fichiers changent
+ * (ce qui lève la confirmation), corrigée puis confirmée par l'audioprothésiste.
+ */
+export const documentBilanSchema = z.object({
+  audiometry: audiometrySchema.nullable(),
+  conflicts: z.array(conflictSchema).default([]),
+  confirmed: z.boolean().default(false),
+  confirmedAt: z.date().nullable().default(null),
+  confirmedBy: idSchema.nullable().default(null),
+  updatedAt: z.date(),
+});
+export type DocumentBilan = z.infer<typeof documentBilanSchema>;
+
+/** Vue du bilan fusionné transmise au navigateur. */
+export interface BilanView {
+  audiometry: Audiometry | null;
+  conflicts: Conflict[];
+  confirmed: boolean;
+  updatedAt: string;
 }
 
 /** Instantané figé à la validation pour garantir la reproductibilité du PDF. */
@@ -130,6 +155,8 @@ export interface DocumentDoc {
   prescriberId: string | null;
   authorId: string;
   data: DocumentData;
+  /** Bilan auditif fusionné (compte rendu) ; null tant qu'aucun fichier n'a été lu. */
+  bilan: DocumentBilan | null;
   /** Chemins des champs suggérés par l'IA et non encore validés. */
   aiFields: string[];
   version: number;

@@ -20,16 +20,20 @@ const FACT_KEYS = [
   "wearHoursPerDay",
   "motivation",
   "handling",
-  "attachmentId",
 ] as const satisfies readonly (keyof CompteRenduData)[];
 
-export function commentFactsSignature(d: CompteRenduData): string {
-  return JSON.stringify(
-    FACT_KEYS.map((k) => {
+/**
+ * `bilanRevision` : horodatage du bilan fusionné confirmé (ou null) — une correction
+ * des mesures après la rédaction rend le commentaire à mettre à jour.
+ */
+export function commentFactsSignature(d: CompteRenduData, bilanRevision: string | null = null): string {
+  return JSON.stringify([
+    ...FACT_KEYS.map((k) => {
       const v = d[k];
       return typeof v === "string" ? v.trim() : v;
     }),
-  );
+    bilanRevision,
+  ]);
 }
 
 const storageKey = (documentId: string) => `lorl:comment-facts:${documentId}`;
@@ -51,7 +55,7 @@ export function writeCommentFacts(documentId: string, signature: string) {
 }
 
 /** Le commentaire suggéré par l'IA a été rédigé avec d'autres valeurs que celles du formulaire. */
-export function isCommentStale(d: CompteRenduData, aiFields: readonly string[], recorded: string | null): boolean {
+export function isCommentStale(d: CompteRenduData, aiFields: readonly string[], recorded: string | null, bilanRevision: string | null = null): boolean {
   if (!recorded || !aiFields.includes("comments") || !d.comments.trim()) return false;
-  return recorded !== commentFactsSignature(d);
+  return recorded !== commentFactsSignature(d, bilanRevision);
 }

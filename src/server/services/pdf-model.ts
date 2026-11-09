@@ -39,13 +39,10 @@ export function prescriberSnapshot(p: PrescriberDoc | null): (PdfPrescriber & { 
     : null;
 }
 
-/** Mesures confirmées du bilan joint à un compte rendu. */
-export async function confirmedAudiometry(data: DocumentData, documentId: string): Promise<Audiometry | null> {
-  const attachmentId = (data as CompteRenduData).attachmentId;
-  if (!attachmentId) return null;
-  const att = await collections().attachments().findOne({ _id: attachmentId, documentId });
-  if (!att?.extraction) return null;
-  const parsed = audiometrySchema.safeParse(att.extraction);
+/** Mesures du bilan fusionné d'un compte rendu, seulement une fois confirmées par l'audioprothésiste. */
+export function confirmedAudiometry(doc: Pick<DocumentDoc, "bilan">): Audiometry | null {
+  if (!doc.bilan?.confirmed || !doc.bilan.audiometry) return null;
+  const parsed = audiometrySchema.safeParse(doc.bilan.audiometry);
   return parsed.success ? parsed.data : null;
 }
 

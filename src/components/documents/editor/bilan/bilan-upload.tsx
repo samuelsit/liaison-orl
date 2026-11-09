@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Camera, Check, FileText, FileUp, ScanLine, TriangleAlert } from "lucide-react";
+import { Camera, Check, CircleAlert, FileText, FileUp, Merge, ScanLine } from "lucide-react";
 import { motion } from "motion/react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Shortcut } from "@/components/ui/shortcut";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,11 +14,21 @@ import { cn } from "@/lib/utils";
 
 const B = crFr.bilan;
 
-export type UploadStep = "uploading" | "reading" | "extracting";
-const STEPS: UploadStep[] = ["uploading", "reading", "extracting"];
+export type UploadStep = "uploading" | "reading" | "extracting" | "done" | "error";
+const ACTIVE_STEPS: UploadStep[] = ["uploading", "reading", "extracting"];
 
-/** Zone de dépôt du bilan (état vide) : photo en premier sur téléphone, collage d'une capture sur ordinateur. */
-export function BilanDropzone({ onChoose, onCamera, highlighted }: { onChoose: () => void; onCamera: () => void; highlighted?: boolean }) {
+/** Fichier en cours de dépôt et de lecture (état local, avant la fusion). */
+export interface UploadJob {
+  key: string;
+  file: File;
+  step: UploadStep;
+  /** Nombre de mesures lues (étape « done »). */
+  measures?: number;
+  error?: string;
+}
+
+/** Zone de dépôt (état vide) : photo en premier sur téléphone, collage de captures sur ordinateur, saisie manuelle. */
+export function BilanDropzone({ onChoose, onCamera, onManual, highlighted }: { onChoose: () => void; onCamera: () => void; onManual: () => void; highlighted?: boolean }) {
   return (
     // Zone cliquable pour la souris ; au clavier, les boutons sont l'accès principal.
     <div
@@ -46,20 +55,23 @@ export function BilanDropzone({ onChoose, onCamera, highlighted }: { onChoose: (
           {B.pasteHint} <Shortcut keys={["mod", "v"]} />
         </span>
       </div>
+      <button type="button" onClick={(e) => (e.stopPropagation(), onManual())} className="text-meta text-muted-foreground underline-offset-4 hover:underline">
+        {B.manualLink}
+      </button>
     </div>
   );
 }
 
 /**
- * Dépôt n'importe où sur la page : un voile apparaît dès qu'un fichier est glissé
- * au-dessus de la fenêtre ; Échap ou sortie de la fenêtre l'annule.
+ * Dépôt n'importe où sur la page : un voile apparaît dès que des fichiers sont glissés
+ * au-dessus de la fenêtre ; Échap ou sortie de la fenêtre l'annule. Tous les fichiers déposés sont transmis.
  */
-export function BilanDropOverlay({ enabled, onFile }: { enabled: boolean; onFile: (file: File) => void }) {
+export function BilanDropOverlay({ enabled, onFiles }: { enabled: boolean; onFiles: (files: File[]) => void }) {
   const [active, setActive] = useState(false);
   const depth = useRef(0);
-  const onFileRef = useRef(onFile);
+  const onFilesRef = useRef(onFiles);
   useEffect(() => {
-    onFileRef.current = onFile;
+    onFilesRef.current = onFiles;
   });
 
   useEffect(() => {
@@ -83,8 +95,8 @@ export function BilanDropOverlay({ enabled, onFile }: { enabled: boolean; onFile
       e.preventDefault();
       depth.current = 0;
       setActive(false);
-      const file = e.dataTransfer?.files[0];
-      if (file) onFileRef.current(file);
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      if (files.length) onFilesRef.current(files);
     }
     function key(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -134,7 +146,7 @@ function Thumbnail({ file }: { file: File }) {
     };
   }, [file]);
   return (
-    <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted text-muted-foreground ring-1 ring-border">
+    <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted text-muted-foreground ring-1 ring-border">
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element -- aperçu local (blob:) du fichier déposé
         <img src={url} alt="" className="size-full object-cover" />
@@ -145,47 +157,60 @@ function Thumbnail({ file }: { file: File }) {
   );
 }
 
-/** Progression de la lecture : fichier, étapes, aperçu de ce qui arrive. */
-export function BilanProgress({ file, step }: { file: File | null; step: UploadStep }) {
-  const current = STEPS.indexOf(step);
+function JobRow({ job }: { job: UploadJob }) {
+  const current = ACTIVE_STEPS.indexOf(job.step);
+  const failed = job.step === "error";
+  const done = job.step === "done";
   return (
-    <div data-testid="bilan-progress" aria-live="polite" className="space-y-4 rounded-xl border bg-surface-subtle p-4">
-      {file ? (
-        <div className="flex min-w-0 items-center gap-3">
-          <Thumbnail file={file} />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{file.name}</p>
-            <p className="text-meta text-muted-foreground tabular-nums">{B.fileSize(file.size)}</p>
-          </div>
+    <li className="space-y-2">
+      <div className="flex min-w-0 items-center gap-3">
+        <Thumbnail file={job.file} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{job.file.name}</p>
+          <p className={cn("flex items-center gap-1.5 text-meta", failed ? "text-warning-foreground" : "text-muted-foreground")} aria-live="polite">
+            {done ? <Check className="size-3.5 shrink-0 text-success-foreground" aria-hidden /> : failed ? <CircleAlert className="size-3.5 shrink-0" aria-hidden /> : <Spinner className="size-3.5 shrink-0" aria-hidden />}
+            <span className="truncate">
+              {done ? `${B.steps.done} · ${B.readResult(job.measures ?? 0)}` : failed ? (job.error ?? B.steps.error) : B.steps[job.step]}
+            </span>
+          </p>
         </div>
-      ) : null}
-      <ol className="grid grid-cols-3 gap-2" aria-label={B.progressTitle}>
-        {STEPS.map((s, i) => {
-          const done = i < current;
-          const active = i === current;
-          return (
-            <li key={s} className="min-w-0 space-y-2">
-              <div className="h-1 overflow-hidden rounded-full bg-border">
-                <motion.div
-                  className="h-full rounded-full bg-primary"
-                  initial={false}
-                  animate={{ width: done ? "100%" : active ? "55%" : "0%" }}
-                  transition={{ duration: DURATION.slow * 2, ease: EASE_OUT }}
-                />
-              </div>
-              <p className={cn("flex items-center gap-1.5 text-meta", done || active ? "text-foreground" : "text-muted-foreground")}>
-                {done ? <Check className="size-3.5 shrink-0 text-success-foreground" aria-hidden /> : active ? <Spinner className="size-3.5 shrink-0" aria-hidden /> : null}
-                <span className="truncate">{B.steps[s]}</span>
-                <span className="sr-only">{done ? ` (${B.stepDone})` : active ? ` (${B.stepCurrent})` : ""}</span>
-              </p>
+        <span className="shrink-0 text-meta text-muted-foreground tabular-nums">{B.fileSize(job.file.size)}</span>
+      </div>
+      {!done && !failed ? (
+        <ol className="grid grid-cols-3 gap-1.5" aria-hidden>
+          {ACTIVE_STEPS.map((s, i) => (
+            <li key={s} className="h-1 overflow-hidden rounded-full bg-border">
+              <motion.div
+                className="h-full rounded-full bg-primary"
+                initial={false}
+                animate={{ width: i < current ? "100%" : i === current ? "55%" : "0%" }}
+                transition={{ duration: DURATION.slow * 2, ease: EASE_OUT }}
+              />
             </li>
-          );
-        })}
+          ))}
+        </ol>
+      ) : null}
+    </li>
+  );
+}
+
+/** Progression : une ligne par fichier (envoi → lecture → extraction → lu), puis l'étape de fusion. */
+export function BilanProgress({ jobs, merging }: { jobs: UploadJob[]; merging: boolean }) {
+  return (
+    <div data-testid="bilan-progress" className="space-y-4 rounded-xl border bg-surface-subtle p-4">
+      <ol className="space-y-3" aria-label={B.progressTitle}>
+        {jobs.map((j) => (
+          <JobRow key={j.key} job={j} />
+        ))}
       </ol>
+      <p className={cn("flex items-center gap-2 text-sm", merging ? "font-medium text-foreground" : "text-muted-foreground")} aria-live="polite">
+        {merging ? <Spinner className="size-4 shrink-0" aria-hidden /> : <Merge className="size-4 shrink-0" aria-hidden />}
+        {B.merging}
+        {merging ? <span className="sr-only"> ({B.stepCurrent})</span> : null}
+      </p>
       <div aria-hidden className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <Skeleton className="h-28 rounded-lg sm:h-32" />
+        <Skeleton className="h-24 rounded-lg sm:h-28" />
         <div className="space-y-2">
-          <Skeleton className="h-6 rounded-md" />
           <Skeleton className="h-6 rounded-md" />
           <Skeleton className="h-6 rounded-md" />
           <Skeleton className="h-6 w-2/3 rounded-md" />
@@ -193,41 +218,5 @@ export function BilanProgress({ file, step }: { file: File | null; step: UploadS
       </div>
       <p className="text-meta text-muted-foreground">{B.progressHint}</p>
     </div>
-  );
-}
-
-/** Lecture impossible : message du serveur et actions de reprise. */
-export function BilanError({
-  message,
-  onManual,
-  onChooseOther,
-  onRetakePhoto,
-}: {
-  message: string;
-  onManual?: () => void;
-  onChooseOther: () => void;
-  onRetakePhoto: () => void;
-}) {
-  return (
-    <Alert variant="warning">
-      <TriangleAlert aria-hidden />
-      <AlertTitle>{B.readFailedTitle}</AlertTitle>
-      <AlertDescription>
-        <p>{message}</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {onManual ? (
-            <Button type="button" size="sm" variant="outline" onClick={onManual}>
-              {B.manualEntry}
-            </Button>
-          ) : null}
-          <Button type="button" size="sm" variant="outline" onClick={onChooseOther}>
-            <FileUp aria-hidden /> {B.chooseOther}
-          </Button>
-          <Button type="button" size="sm" variant="outline" className="sm:hidden" onClick={onRetakePhoto}>
-            <Camera aria-hidden /> {B.retakePhoto}
-          </Button>
-        </div>
-      </AlertDescription>
-    </Alert>
   );
 }

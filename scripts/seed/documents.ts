@@ -8,7 +8,7 @@ import { formatPersonName } from "@/lib/text";
 import type { AdressageData, CompteRenduData } from "@/lib/schemas/document";
 import type { DispatchStatus } from "@/lib/schemas/dispatch";
 import { createDocument, saveDraft, validateDocument } from "@/server/services/documents";
-import { saveExtraction, uploadBilan } from "@/server/services/attachments";
+import { rebuildBilan, saveBilan, uploadBilan } from "@/server/services/attachments";
 import { extractBilan, generateComment } from "@/server/services/ai";
 import { sendDocument } from "@/server/services/dispatch";
 import { DEMO_BILANS, renderDemoBilan } from "./bilans";
@@ -184,11 +184,9 @@ async function seedCompteRendu(s: SeedContext, spec: CrSpec) {
     const b = DEMO_BILANS.find((x) => x.file === spec.bilan)!;
     const file = await renderDemoBilan(b);
     const att = await uploadBilan(ctx, doc._id, { name: b.file, data: file.data });
-    const a = await extractBilan(ctx, att._id);
-    if (spec.confirm) {
-      await saveExtraction(ctx, att._id, a, true);
-      data = { ...data, attachmentId: att._id };
-    }
+    await extractBilan(ctx, att._id);
+    const bilan = await rebuildBilan(ctx, doc._id);
+    if (spec.confirm) await saveBilan(ctx, doc._id, bilan.audiometry, true);
   }
   await saveDraft(ctx, doc._id, { data, patientId: p._id, prescriberId: p.usualPrescriberId, aiFields: [] });
   if (spec.confirm && !data.comments) {

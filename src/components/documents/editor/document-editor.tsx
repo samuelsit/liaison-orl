@@ -26,7 +26,8 @@ import { useAutosave, readBackup, clearBackup } from "@/hooks/use-autosave";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { deleteDocumentAction, reopenDocumentAction, validateDocumentAction } from "@/server/actions/documents";
-import { isSendableType, type DocumentData, type DocumentStatus, type DocumentType } from "@/lib/schemas/document";
+import { isSendableType, type BilanView, type DocumentData, type DocumentStatus, type DocumentType } from "@/lib/schemas/document";
+import type { AttachmentView } from "@/lib/schemas/attachment";
 import type { PatientView } from "@/server/services/patients";
 import type { PrescriberView } from "@/server/services/prescribers";
 import { formatRelative } from "@/lib/dates";
@@ -35,7 +36,7 @@ import { docFr } from "@/lib/i18n/documents";
 import { EditorContext, type EditorContextValue, type EditorShared } from "./editor-context";
 import { AdressageFields } from "./adressage-fields";
 import { CompteRenduFields } from "./compte-rendu-fields";
-import { BilanPanel, type AttachmentView } from "./bilan-panel";
+import { BilanPanel } from "./bilan-panel";
 import { CompteRenduUiProvider } from "./bilan/cr-context";
 import { MotifAssistant } from "./motif-assistant";
 import { CommentAssistant } from "./comment-assistant";
@@ -60,6 +61,7 @@ export function DocumentEditor({
   shared,
   permissions,
   attachments,
+  bilan,
 }: {
   doc: EditorDocument;
   initialPatient: PatientView | null;
@@ -67,6 +69,8 @@ export function DocumentEditor({
   shared: EditorShared;
   permissions: { canValidate: boolean; canSend: boolean; canDelete: boolean };
   attachments: AttachmentView[];
+  /** Bilan auditif fusionné (compte rendu). */
+  bilan: BilanView | null;
 }) {
   const router = useRouter();
   const isMobile = useIsMobile();
@@ -112,8 +116,9 @@ export function DocumentEditor({
     }
   }, [doc.id, doc.updatedAt, initialPayload, readOnly]);
 
-  // Aperçu : rendu après une courte pause de saisie.
+  // Aperçu : rendu après une courte pause de saisie ; `previewRev` force un rendu quand le bilan fusionné change.
   const [previewBody, setPreviewBody] = useState(payload);
+  const [previewRev, setPreviewRev] = useState(0);
   useEffect(() => {
     const t = setTimeout(() => setPreviewBody(payload), 450);
     return () => clearTimeout(t);
@@ -126,8 +131,8 @@ export function DocumentEditor({
         ? { method: "POST" as const, url: `/api/documents/${doc.id}/apercu?variant=postal&debug=pingen`, body: previewBody }
         : readOnly
           ? { method: "GET" as const, url: `/api/documents/${doc.id}/pdf?v=${doc.version}` }
-          : { method: "POST" as const, url: `/api/documents/${doc.id}/apercu`, body: previewBody },
-    [pingenDebug, readOnly, doc.id, doc.version, previewBody],
+          : { method: "POST" as const, url: `/api/documents/${doc.id}/apercu${previewRev ? `?rev=${previewRev}` : ""}`, body: previewBody },
+    [pingenDebug, readOnly, doc.id, doc.version, previewBody, previewRev],
   );
 
   const clearErrors = (keys: string[]) =>
@@ -169,6 +174,7 @@ export function DocumentEditor({
       setPrescriberState(p);
       clearErrors(["prescriberId"]);
     },
+    refreshPreview: () => setPreviewRev((r) => r + 1),
   };
 
   const runValidate = useCallback(
@@ -219,8 +225,8 @@ export function DocumentEditor({
       // État partagé du bilan et de la rédaction du commentaire (rédaction automatique après confirmation des mesures).
       <CompteRenduUiProvider>
         <CompteRenduFields
-          bilan={<BilanPanel attachments={attachments} />}
-          commentAssistant={!readOnly && shared.aiEnabled ? <CommentAssistant attachments={attachments} /> : null}
+          bilan={<BilanPanel attachments={attachments} initialBilan={bilan} />}
+          commentAssistant={!readOnly && shared.aiEnabled ? <CommentAssistant /> : null}
         />
       </CompteRenduUiProvider>
     );
