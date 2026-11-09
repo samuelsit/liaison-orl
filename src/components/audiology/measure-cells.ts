@@ -1,19 +1,42 @@
-import type { Audiometry, Curve, FreqKey, Measure, NoiseTest, Speech } from "@/lib/schemas/audiometry";
+import type { Audiometry, Curve, FreqKey, Measure } from "@/lib/schemas/audiometry";
 import { FREQ_KEYS, MAIN_FREQUENCIES } from "@/lib/schemas/audiometry";
 import { gainReference } from "@/lib/audiology/calculations";
+import { CURVE_PATHS, getCurve, setCurveMeasure, type CurvePath, type EarGroup } from "@/lib/audiology/refs";
 
 /*
  * Modèle d'affichage de l'audiométrie (tableau de correction, saisie mobile,
  * audiogrammes) : fonctions pures, sans effet sur les calculs (BIAP, gain).
+ * L'accès aux mesures par référence vit dans `@/lib/audiology/refs` (partagé avec la fusion).
  */
 
-export type CurvePath = "right.air" | "right.bone" | "right.aided" | "left.air" | "left.bone" | "left.aided" | "freeField.unaided" | "freeField.aided";
-export type EarGroup = "right" | "left" | "freeField";
+export {
+  CURVE_PATHS,
+  getCurve,
+  getMeasure,
+  getSpeech,
+  listLowConfidence,
+  listMeasures,
+  markChecked,
+  NOISE_KEYS,
+  refId,
+  setCurve,
+  setCurveMeasure,
+  setMeasure,
+  setNoiseMeasure,
+  setNoiseName,
+  setSpeechMeasure,
+  SPEECH_KEYS,
+  SPEECH_TARGETS,
+  type CurvePath,
+  type EarGroup,
+  type MeasureRef,
+  type NoiseKey,
+  type SpeechKey,
+  type SpeechTarget,
+} from "@/lib/audiology/refs";
+
 /** `earAided` : champ libre avec appareil, une oreille seule. */
 export type CurveKind = "air" | "bone" | "earAided" | "unaided" | "aided";
-export type SpeechTarget = "right" | "left" | "speechUnaided" | "speechAided";
-export type SpeechKey = keyof Speech;
-export type NoiseKey = "unaidedSnr" | "aidedSnr" | "unaidedScore" | "aidedScore";
 
 export interface GridRow {
   path: CurvePath;
@@ -25,6 +48,7 @@ export interface GridRow {
   label: string;
 }
 
+/** Lignes du tableau des seuils, dans l'ordre de `CURVE_PATHS`. */
 export const GRID_ROWS: readonly GridRow[] = [
   { path: "right.air", ear: "right", kind: "air", marker: "O", label: "OD — aérienne" },
   { path: "right.bone", ear: "right", kind: "bone", marker: "<", label: "OD — osseuse" },
@@ -36,52 +60,12 @@ export const GRID_ROWS: readonly GridRow[] = [
   { path: "freeField.aided", ear: "freeField", kind: "aided", marker: "A", label: "Champ libre avec" },
 ];
 
-export const SPEECH_TARGETS: readonly SpeechTarget[] = ["right", "left", "speechUnaided", "speechAided"];
-export const SPEECH_KEYS: readonly SpeechKey[] = ["srt", "maxScore", "maxScoreLevel"];
-export const NOISE_KEYS: readonly NoiseKey[] = ["unaidedSnr", "aidedSnr", "unaidedScore", "aidedScore"];
-
 export const INTERMEDIATE_FREQS: readonly FreqKey[] = ["750", "1500"];
 const MAIN_KEYS = MAIN_FREQUENCIES.map(String) as FreqKey[];
 
 /** Fréquences affichées : principales, plus 750 / 1 500 Hz si demandé. */
 export function visibleFrequencies(withIntermediate: boolean): FreqKey[] {
   return withIntermediate ? [...FREQ_KEYS] : MAIN_KEYS;
-}
-
-export function getCurve(a: Audiometry, path: CurvePath): Curve {
-  const [k1, k2] = path.split(".") as [EarGroup, string];
-  return (a[k1] as unknown as Record<string, Curve>)[k2] ?? {};
-}
-
-export function setCurve(a: Audiometry, path: CurvePath, c: Curve): Audiometry {
-  const [k1, k2] = path.split(".") as [EarGroup, string];
-  return { ...a, [k1]: { ...a[k1], [k2]: c } } as Audiometry;
-}
-
-export function setCurveMeasure(a: Audiometry, path: CurvePath, f: FreqKey, m: Measure | null): Audiometry {
-  const c = { ...getCurve(a, path) };
-  if (m) c[f] = m;
-  else delete c[f];
-  return setCurve(a, path, c);
-}
-
-export function getSpeech(a: Audiometry, target: SpeechTarget): Speech {
-  return target === "right" || target === "left" ? a[target].speech : a.freeField[target];
-}
-
-export function setSpeechMeasure(a: Audiometry, target: SpeechTarget, key: SpeechKey, m: Measure | null): Audiometry {
-  if (target === "right" || target === "left") return { ...a, [target]: { ...a[target], speech: { ...a[target].speech, [key]: m } } };
-  return { ...a, freeField: { ...a.freeField, [target]: { ...a.freeField[target], [key]: m } } };
-}
-
-const EMPTY_NOISE: NoiseTest = { testName: null, unaidedSnr: null, aidedSnr: null, unaidedScore: null, aidedScore: null };
-
-export function setNoiseMeasure(a: Audiometry, key: NoiseKey, m: Measure | null): Audiometry {
-  return { ...a, noise: { ...(a.noise ?? EMPTY_NOISE), [key]: m } };
-}
-
-export function setNoiseName(a: Audiometry, name: string): Audiometry {
-  return { ...a, noise: { ...(a.noise ?? EMPTY_NOISE), testName: name || null } };
 }
 
 export type ParsedCell = { value: number | null; noResponse: boolean };
@@ -108,57 +92,9 @@ export function cellText(m: Measure | undefined | null): string {
   return m.value === null ? "" : String(m.value).replace(".", ",");
 }
 
-/** Référence d'une mesure, dans l'ordre de lecture du tableau. */
-export type MeasureRef =
-  | { kind: "curve"; path: CurvePath; freq: FreqKey }
-  | { kind: "speech"; target: SpeechTarget; key: SpeechKey }
-  | { kind: "noise"; key: NoiseKey };
-
-export function refId(r: MeasureRef): string {
-  if (r.kind === "curve") return `curve:${r.path}:${r.freq}`;
-  if (r.kind === "speech") return `speech:${r.target}:${r.key}`;
-  return `noise:${r.key}`;
-}
-
-export function getMeasure(a: Audiometry, r: MeasureRef): Measure | null {
-  if (r.kind === "curve") return getCurve(a, r.path)[r.freq] ?? null;
-  if (r.kind === "speech") return getSpeech(a, r.target)[r.key] ?? null;
-  return a.noise?.[r.key] ?? null;
-}
-
-export function setMeasure(a: Audiometry, r: MeasureRef, m: Measure | null): Audiometry {
-  if (r.kind === "curve") return setCurveMeasure(a, r.path, r.freq, m);
-  if (r.kind === "speech") return setSpeechMeasure(a, r.target, r.key, m);
-  return setNoiseMeasure(a, r.key, m);
-}
-
-/** Toutes les mesures présentes (tonale, vocale, bruit), dans l'ordre du tableau. */
-export function listMeasures(a: Audiometry): MeasureRef[] {
-  const refs: MeasureRef[] = [];
-  for (const row of GRID_ROWS) {
-    const c = getCurve(a, row.path);
-    for (const f of FREQ_KEYS) if (c[f]) refs.push({ kind: "curve", path: row.path, freq: f });
-  }
-  for (const t of SPEECH_TARGETS) for (const k of SPEECH_KEYS) if (getSpeech(a, t)[k]) refs.push({ kind: "speech", target: t, key: k });
-  for (const k of NOISE_KEYS) if (a.noise?.[k]) refs.push({ kind: "noise", key: k });
-  return refs;
-}
-
-/** Valeurs lues avec une confiance faible (à vérifier), tonale, vocale et bruit compris. */
-export function listLowConfidence(a: Audiometry): MeasureRef[] {
-  return listMeasures(a).filter((r) => getMeasure(a, r)?.confidence === "low");
-}
-
-/** Marque une valeur comme relue (confiance élevée), sans changer sa valeur. */
-export function markChecked(a: Audiometry, r: MeasureRef): Audiometry {
-  const m = getMeasure(a, r);
-  if (!m || m.confidence === "high") return a;
-  return setMeasure(a, r, { ...m, confidence: "high" });
-}
-
 /** Vrai si une courbe contient une valeur à 750 ou 1 500 Hz (affichage des fréquences intermédiaires). */
 export function hasIntermediateValues(a: Audiometry): boolean {
-  return GRID_ROWS.some((row) => INTERMEDIATE_FREQS.some((f) => getCurve(a, row.path)[f] !== undefined));
+  return CURVE_PATHS.some((path) => INTERMEDIATE_FREQS.some((f) => getCurve(a, path)[f] !== undefined));
 }
 
 /**

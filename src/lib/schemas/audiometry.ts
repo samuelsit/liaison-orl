@@ -79,6 +79,55 @@ export const audiometrySchema = z.object({
 });
 export type Audiometry = z.infer<typeof audiometrySchema>;
 
+/* ---------- Références de mesure (chemins stables, partagés client / serveur) ---------- */
+
+export const CURVE_PATHS = ["right.air", "right.bone", "right.aided", "left.air", "left.bone", "left.aided", "freeField.unaided", "freeField.aided"] as const;
+export const curvePathSchema = z.enum(CURVE_PATHS);
+export type CurvePath = z.infer<typeof curvePathSchema>;
+
+export const SPEECH_TARGETS = ["right", "left", "speechUnaided", "speechAided"] as const;
+export const speechTargetSchema = z.enum(SPEECH_TARGETS);
+export type SpeechTarget = z.infer<typeof speechTargetSchema>;
+
+export const SPEECH_KEYS = ["srt", "maxScore", "maxScoreLevel"] as const satisfies readonly (keyof Speech)[];
+export const speechKeySchema = z.enum(SPEECH_KEYS);
+export type SpeechKey = z.infer<typeof speechKeySchema>;
+
+export const NOISE_KEYS = ["unaidedSnr", "aidedSnr", "unaidedScore", "aidedScore"] as const;
+export const noiseKeySchema = z.enum(NOISE_KEYS);
+export type NoiseKey = z.infer<typeof noiseKeySchema>;
+
+export const measureRefSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("curve"), path: curvePathSchema, freq: freqKeySchema }),
+  z.object({ kind: z.literal("speech"), target: speechTargetSchema, key: speechKeySchema }),
+  z.object({ kind: z.literal("noise"), key: noiseKeySchema }),
+]);
+export type MeasureRef = z.infer<typeof measureRefSchema>;
+
+/* ---------- Fusion de plusieurs bilans ---------- */
+
+/** Interprétation d'un fichier : automatique (selon la lecture), tout sans appareil, tout avec appareils. */
+export const BILAN_CONDITIONS = ["auto", "unaided", "aided"] as const;
+export const bilanConditionSchema = z.enum(BILAN_CONDITIONS);
+export type BilanCondition = z.infer<typeof bilanConditionSchema>;
+
+export const conflictCandidateSchema = z.object({
+  attachmentId: z.string(),
+  fileName: z.string(),
+  value: z.number().nullable(),
+  noResponse: z.boolean().optional(),
+  confidence: confidenceSchema,
+});
+export type ConflictCandidate = z.infer<typeof conflictCandidateSchema>;
+
+/** Même mesure lue différemment dans plusieurs fichiers : valeur retenue et autres lectures. */
+export const conflictSchema = z.object({
+  ref: measureRefSchema,
+  kept: conflictCandidateSchema,
+  others: z.array(conflictCandidateSchema).min(1),
+});
+export type Conflict = z.infer<typeof conflictSchema>;
+
 export function emptyAudiometry(): Audiometry {
   const speech = { srt: null, maxScore: null, maxScoreLevel: null };
   return {
