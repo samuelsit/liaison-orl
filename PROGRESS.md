@@ -89,7 +89,7 @@ Refonte de tous les documents et e-mails sortants : sobres, lisibles, paramétr�
 | `npm run test` | ✅ 45 fichiers, 367 tests (unitaires, intégration sur base MongoDB embarquée, zones Pingen, non-régression visuelle PDF et e-mails) |
 | `npm run build` | ✅ |
 | `npm run render:docs` | ✅ 18 PDF, zones Pingen conformes partout |
-| `npm run test:e2e` | ⚠️ 22 / 27 (2026-10-28) : adressage (impression / téléchargement) et compte rendu (envoi + lien sécurisé) ✅ ; 5 échecs **antérieurs**, voir « Problèmes connus » n° 8 |
+| `npm run test:e2e` | ⚠️ 23 / 28 (2026-11-09) : adressage (impression / téléchargement), compte rendu (envoi + lien sécurisé) et compte rendu **en trois fichiers fusionnés** ✅ ; 5 échecs **antérieurs** inchangés, voir « Problèmes connus » n° 8 |
 
 ## Ce qui est livré
 
