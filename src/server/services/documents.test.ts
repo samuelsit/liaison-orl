@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createTestContext, createTestOrg, setupTestDb } from "../../../tests/helpers";
 import { collections } from "@/lib/db/collections";
+import { extractBilan } from "./ai";
+import { rebuildBilan, saveBilan, uploadBilan } from "./attachments";
 import { storage } from "./storage";
 import { createDocument, deleteDocument, getDocumentForUser, renderPreview, reopenDocument, saveDraft, validateDocument } from "./documents";
 import { createPatient } from "./patients";
@@ -73,6 +76,27 @@ describe("cycle de vie d'un document", () => {
     await expect(getDocumentForUser(other, doc._id)).rejects.toThrow();
     const assistant = await createTestContext(org, centres, { role: "assistant" });
     await expect(validateDocument(assistant, doc._id)).rejects.toThrow();
+  });
+
+  it("fige le bilan fusionné confirmé dans l'instantané, et l'ignore tant qu'il n'est pas confirmé", async () => {
+    const { ctx, patient, prescriber } = await setup();
+    const doc = await createDocument(ctx, "COMPTE_RENDU", { patientId: patient.id });
+    const att = await uploadBilan(ctx, doc._id, { name: "tonale.pdf", data: readFileSync("demo/bilans/bilan-moreau-andre-tonale.pdf") });
+    await extractBilan(ctx, att._id);
+    const bilan = await rebuildBilan(ctx, doc._id);
+    const data = { ...doc.data, degree: "moyenne", ears: "deux", deviceType: "contour", deviceBrand: "signia", deviceClass: "1" };
+    await saveDraft(ctx, doc._id, { data, patientId: patient.id, prescriberId: prescriber.id, aiFields: [] });
+    // Non confirmé : l'aperçu n'imprime pas l'audiogramme.
+    const before = await renderPreview(ctx, doc._id, { data, patientId: patient.id, prescriberId: prescriber.id });
+    await saveBilan(ctx, doc._id, bilan.audiometry, true);
+    const after = await renderPreview(ctx, doc._id, { data, patientId: patient.id, prescriberId: prescriber.id });
+    expect(after.info.pages).toBeGreaterThan(before.info.pages);
+    const v = await validateDocument(ctx, doc._id);
+    expect(v.ok).toBe(true);
+    const saved = await getDocumentForUser(ctx, doc._id);
+    const frozen = saved.snapshot?.audiometry as { right: { air: Record<string, { value: number; source?: string }> } } | null;
+    expect(frozen?.right.air["1000"]).toMatchObject({ value: 45, source: att._id });
+    expect(saved.bilan?.confirmed).toBe(true);
   });
 
   it("génère un aperçu PDF et supprime un brouillon", async () => {

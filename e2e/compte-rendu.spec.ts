@@ -69,3 +69,36 @@ test("compte rendu : bilan lu par l'IA, correction, commentaire, validation, env
   await page.goto("/envois");
   await expect(page.getByText(/DURAND/).first()).toBeVisible();
 });
+
+test("compte rendu : trois fichiers déposés d'un coup (tonale, vocale, avec appareils) fusionnés, vérifiés et confirmés", async ({ page }) => {
+  await login(page, ACCOUNTS.audio);
+  await page.getByTestId("new-compte_rendu").click();
+  await page.waitForURL(/\/documents\/[^/]+$/);
+  // Les fichiers fictifs portent un autre nom de patient : la lecture ne vérifie pas l'identité, le centre actif liste Mme Durand.
+  await pickFromCombobox(page, "patient-combobox", "durand", /Jeanne DURAND/);
+
+  await page
+    .getByTestId("bilan-input")
+    .setInputFiles([
+      path.join(BILANS_DIR, "bilan-moreau-andre-tonale.pdf"),
+      path.join(BILANS_DIR, "bilan-moreau-andre-vocale.pdf"),
+      path.join(BILANS_DIR, "photo-moreau-andre-gain-appareils.jpg"),
+    ]);
+  // Progression par fichier, puis fusion, puis vérification unique du bilan fusionné.
+  await expect(page.getByTestId("bilan-progress")).toBeVisible();
+  await expect(page.getByTestId("confirm-measures")).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole("dialog")).toContainText("3 fichiers");
+  // Les trois fichiers d'origine sont consultables ; la case active affiche son fichier source.
+  await expect(page.getByRole("dialog").getByRole("radio", { name: /bilan-moreau-andre-vocale/ })).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("radio", { name: /photo-moreau-andre-gain/ })).toBeVisible();
+  await expect(page.getByRole("dialog").getByLabel(/OD — appareillée 1k Hz/)).toHaveValue("25");
+  await expect(page.getByRole("dialog").getByLabel(/OD \(casque\) — Seuil d'intelligibilité/)).toHaveValue("55");
+  await page.getByTestId("confirm-measures").click();
+
+  // Degré et oreilles proposés, commentaire rédigé d'après le gain, résumé avec le nombre de fichiers.
+  await expect(page.getByTestId("ai-badge").first()).toBeVisible();
+  await expect(page.locator("#comments")).not.toHaveValue("", { timeout: 20_000 });
+  await expect(page.locator("#comments")).toHaveValue(/gain/i);
+  await expect(page.locator("#sec-bilan")).toContainText("3 fichiers");
+  await expect(page.locator("#sec-bilan")).toContainText("Mesures confirmées");
+});

@@ -161,7 +161,8 @@ interface CrSpec {
   author: string;
   centre: string;
   patient: string;
-  bilan?: string;
+  /** Fichiers de bilan (demo/bilans) déposés sur le compte rendu, lus puis fusionnés. */
+  bilans?: string[];
   confirm?: boolean;
   data: Partial<CompteRenduData>;
   validate?: boolean;
@@ -180,11 +181,14 @@ async function seedCompteRendu(s: SeedContext, spec: CrSpec) {
     prescriptionDate: isoDaysAgo(spec.days + 35),
     ...spec.data,
   };
-  if (spec.bilan) {
-    const b = DEMO_BILANS.find((x) => x.file === spec.bilan)!;
-    const file = await renderDemoBilan(b);
-    const att = await uploadBilan(ctx, doc._id, { name: b.file, data: file.data });
-    await extractBilan(ctx, att._id);
+  if (spec.bilans?.length) {
+    for (const name of spec.bilans) {
+      const b = DEMO_BILANS.find((x) => x.file === name)!;
+      const file = await renderDemoBilan(b);
+      const att = await uploadBilan(ctx, doc._id, { name: b.file, data: file.data });
+      await extractBilan(ctx, att._id);
+    }
+    // Comme dans l'interface : une seule fusion après la lecture de tous les fichiers.
     const bilan = await rebuildBilan(ctx, doc._id);
     if (spec.confirm) await saveBilan(ctx, doc._id, bilan.audiometry, true);
   }
@@ -278,7 +282,7 @@ export async function seedDocuments(s: SeedContext): Promise<{ bilansDir: string
     author: claire,
     centre: "pierrefitte",
     patient: "Durand",
-    bilan: "bilan-durand-jeanne.pdf",
+    bilans: ["bilan-durand-jeanne.pdf"],
     confirm: true,
     data: DEVICE,
     validate: true,
@@ -380,7 +384,7 @@ export async function seedDocuments(s: SeedContext): Promise<{ bilansDir: string
     author: claire,
     centre: "saint-denis",
     patient: "Petitjean",
-    bilan: "photo-bilan-petitjean-gerard.jpg",
+    bilans: ["photo-bilan-petitjean-gerard.jpg"],
     confirm: true,
     data: { ...DEVICE, ears: "droite", degree: "severe", deviceType: "contour", deviceClass: "1" },
     validate: true,
@@ -403,14 +407,26 @@ export async function seedDocuments(s: SeedContext): Promise<{ bilansDir: string
     data: { exams: { conduits: true, bilan: true, autre: false } },
     days: 0,
   });
+  // Deux fichiers pour la même patiente, deux seuils qui diffèrent : conflits à trancher dans la vérification.
   await seedCompteRendu(s, {
     author: claire,
     centre: "pierrefitte",
     patient: "Lefort",
-    bilan: "photo-bilan-lefort-monique.jpg",
+    bilans: ["photo-bilan-lefort-monique.jpg", "bilan-lefort-monique-tonale.pdf"],
     confirm: false,
     data: { deviceBrand: "signia", deviceClass: "2", rechargeable: true },
     days: 0,
+  });
+  // Bilan en trois documents (tonale, vocale, mesures avec appareils) fusionnés puis confirmés : gain par oreille.
+  await seedCompteRendu(s, {
+    author: claire,
+    centre: "sarcelles",
+    patient: "Moreau",
+    bilans: ["bilan-moreau-andre-tonale.pdf", "bilan-moreau-andre-vocale.pdf", "photo-moreau-andre-gain-appareils.jpg"],
+    confirm: true,
+    data: { ...DEVICE, deviceBrand: "resound", deviceModel: "Nexia 9" },
+    validate: true,
+    days: 1,
   });
   await seedCompteRendu(s, {
     author: karim,

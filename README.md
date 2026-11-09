@@ -35,7 +35,7 @@ L'écran de connexion affiche les comptes de démonstration (mot de passe commun
 | `lea.petit@demo.test` | Assistante, sans droit d'envoi |
 | `nadia.roux@demo.test` | Assistante, avec droit d'envoi |
 
-Des **bilans auditifs fictifs** (PDF et photos) sont fournis dans [demo/bilans/](demo/bilans/) : glissez-les dans un compte rendu pour voir la lecture par l'IA. Les e-mails simulés (avec leur lien sécurisé cliquable) sont visibles dans **Administration → Boîte d'envoi (démo)**.
+Des **bilans auditifs fictifs** (PDF et photos) sont fournis dans [demo/bilans/](demo/bilans/) : glissez-les dans un compte rendu pour voir la lecture par l'IA. Un bilan peut arriver **en plusieurs fichiers** déposés d'un coup — par exemple `bilan-moreau-andre-tonale.pdf`, `bilan-moreau-andre-vocale.pdf` et `photo-moreau-andre-gain-appareils.jpg` : chaque fichier est lu, puis l'application fusionne les mesures (tonale, vocale, seuils avec appareils) en une seule audiométrie à vérifier ; `photo-bilan-lefort-monique.jpg` + `bilan-lefort-monique-tonale.pdf` montrent la gestion des conflits entre deux lectures. Les e-mails simulés (avec leur lien sécurisé cliquable) sont visibles dans **Administration → Boîte d'envoi (démo)**.
 
 ---
 
@@ -283,7 +283,8 @@ Poussez sur la branche principale du dépôt : Vercel redéploie automatiquement
 | `npm run render:docs` | Génère tous les PDF (versions e-mail et postale, cas limites, version « debug » avec les zones Pingen) dans `/tmp/docs-preview`, en PNG à 150 dpi, et contrôle les zones Pingen ; `-- --previews` met à jour [docs/previews/](docs/previews/) |
 | `npm run render:emails` | Rend chaque e-mail (HTML + texte brut) et le capture à 600 px et 375 px, en clair et en sombre (`/tmp/emails-preview`) |
 | `npm run pingen:check` | Dépose chaque gabarit postal dans Pingen **staging**, vérifie qu'il passe la validation, puis l'annule (aucun envoi) |
-| `npm run ai:check` | Vérifie l'IA réelle sur les bilans fictifs (consomme quelques centimes) |
+| `npm run ai:check` | Vérifie l'IA réelle sur les bilans fictifs : bilan complet, puis tonale, vocale et feuille « avec appareils » séparées (consomme quelques centimes ; `-- fichier.pdf` pour un fichier précis) |
+| `npm run bilans:generate` | Régénère les bilans fictifs manquants de `demo/bilans/` (`-- --force` pour tous) |
 | `npm run admin:create` · `npm run db:indexes` | Mise en production (voir 2.7) |
 
 Les choix techniques et leurs raisons sont tenus dans [DECISIONS.md](DECISIONS.md), l'avancement et les limites connues dans [PROGRESS.md](PROGRESS.md), le cahier des charges dans [CLAUDE.md](CLAUDE.md).

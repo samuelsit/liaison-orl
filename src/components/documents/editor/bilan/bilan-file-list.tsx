@@ -77,7 +77,7 @@ export function BilanFileList({
                     {kind.label}
                   </span>
                   {measures > 0 ? <span className="tabular-nums">· {B.readResult(measures)}</span> : null}
-                  {f.condition !== "auto" ? <Badge tone="info">{B.condition[f.condition]}</Badge> : f.aidedSheet ? <span title={B.aidedSheetHint}>· {B.kinds.appareillee}</span> : null}
+                  {f.condition !== "auto" ? <Badge tone="info">{B.condition[f.condition]}</Badge> : f.aidedSheet && kind.label !== B.kinds.appareillee ? <span title={B.aidedSheetHint}>· {B.kinds.appareillee}</span> : null}
                   <span className="tabular-nums">· {B.fileSize(f.size)}</span>
                 </p>
                 {f.extractionStatus === "failed" && f.extractionError ? <p className="mt-0.5 text-meta text-warning-foreground">{f.extractionError}</p> : null}

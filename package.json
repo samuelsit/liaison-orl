@@ -19,6 +19,7 @@
     "ai:check": "tsx --tsconfig tsconfig.scripts.json scripts/ai-check.ts",
     "test:e2e:nobuild": "playwright test",
     "render:docs": "tsx --tsconfig tsconfig.scripts.json scripts/render-docs.tsx",
+    "bilans:generate": "tsx --tsconfig tsconfig.scripts.json scripts/seed/gen-bilans.ts",
     "render:emails": "tsx --tsconfig tsconfig.scripts.json scripts/render-emails.tsx",
     "pingen:check": "tsx --tsconfig tsconfig.scripts.json scripts/pingen-staging-check.tsx"
   },

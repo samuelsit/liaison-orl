@@ -25,12 +25,16 @@ import {
 import { emptyAudiometry, type Audiometry, type Confidence, type Curve } from "@/lib/schemas/audiometry";
 import { registerFonts } from "@/lib/pdf/fonts";
 
+/** Contenu du document : complet, tonale seule, vocale seule, ou feuille « avec appareils » (gain prothétique). */
+export type DemoBilanLayout = "complet" | "tonale" | "vocale" | "appareillee";
+
 export interface DemoBilan {
   file: string;
   format: "pdf" | "jpg";
   patient: { civility: string; firstName: string; lastName: string; birthDate: string };
   examDate: string;
   audiometry: Audiometry;
+  layout?: DemoBilanLayout;
 }
 
 function c(values: Record<string, number | "NR">, conf: Confidence = "high", low: string[] = []): Curve {
@@ -50,12 +54,15 @@ function speech(srt: number | null, max: number | null, level: number | null, co
 }
 
 function audiometry(def: {
-  rAir: Record<string, number | "NR">;
-  lAir: Record<string, number | "NR">;
-  rBone: Record<string, number | "NR">;
-  lBone: Record<string, number | "NR">;
-  ffU: Record<string, number>;
-  ffA: Record<string, number>;
+  rAir?: Record<string, number | "NR">;
+  lAir?: Record<string, number | "NR">;
+  rBone?: Record<string, number | "NR">;
+  lBone?: Record<string, number | "NR">;
+  /** Seuils avec appareil, par oreille (champ libre). */
+  rAided?: Record<string, number>;
+  lAided?: Record<string, number>;
+  ffU?: Record<string, number>;
+  ffA?: Record<string, number>;
   conf?: Confidence;
   low?: string[];
   sU?: [number, number, number];
@@ -66,12 +73,14 @@ function audiometry(def: {
 }): Audiometry {
   const a = emptyAudiometry();
   const conf = def.conf ?? "high";
-  a.right.air = c(def.rAir, conf, def.low);
-  a.left.air = c(def.lAir, conf, def.low);
-  a.right.bone = c(def.rBone, conf);
-  a.left.bone = c(def.lBone, conf);
-  a.freeField.unaided = c(def.ffU, conf);
-  a.freeField.aided = c(def.ffA, conf, def.low);
+  a.right.air = c(def.rAir ?? {}, conf, def.low);
+  a.left.air = c(def.lAir ?? {}, conf, def.low);
+  a.right.bone = c(def.rBone ?? {}, conf);
+  a.left.bone = c(def.lBone ?? {}, conf);
+  a.right.aided = c(def.rAided ?? {}, conf, def.low);
+  a.left.aided = c(def.lAided ?? {}, conf, def.low);
+  a.freeField.unaided = c(def.ffU ?? {}, conf);
+  a.freeField.aided = c(def.ffA ?? {}, conf, def.low);
   if (def.sR) a.right.speech = speech(...def.sR, conf);
   if (def.sL) a.left.speech = speech(...def.sL, conf);
   if (def.sU) a.freeField.speechUnaided = speech(...def.sU, conf);
@@ -160,13 +169,79 @@ export const DEMO_BILANS: DemoBilan[] = [
       sA: [30, 95, 55],
     }),
   },
+  /*
+   * Bilan de Mme Lefort en deux temps : la photo ci-dessus et un export tonal de contrôle dont
+   * deux seuils diffèrent de 10 dB (démonstration des conflits entre fichiers).
+   */
+  {
+    file: "bilan-lefort-monique-tonale.pdf",
+    format: "pdf",
+    layout: "tonale",
+    patient: { civility: "Mme", firstName: "Monique", lastName: "Lefort", birthDate: "1950-07-25" },
+    examDate: "2026-10-21",
+    audiometry: audiometry({
+      rAir: { "250": 25, "500": 30, "1000": 45, "2000": 50, "4000": 55, "8000": 65 },
+      lAir: { "250": 25, "500": 30, "1000": 40, "2000": 45, "4000": 55, "8000": 70 },
+      rBone: { "500": 25, "1000": 30, "2000": 40, "4000": 50 },
+      lBone: { "500": 25, "1000": 35, "2000": 40, "4000": 50 },
+    }),
+  },
+  /*
+   * Bilan de M. Moreau en trois documents, comme dans la pratique : audiométrie tonale au casque,
+   * audiométrie vocale à part, puis mesures avec appareils (gain prothétique) photographiées.
+   */
+  {
+    file: "bilan-moreau-andre-tonale.pdf",
+    format: "pdf",
+    layout: "tonale",
+    patient: { civility: "M.", firstName: "André", lastName: "Moreau", birthDate: "1944-09-09" },
+    examDate: "2026-10-20",
+    audiometry: audiometry({
+      rAir: { "125": 25, "250": 30, "500": 40, "1000": 45, "2000": 55, "3000": 60, "4000": 65, "6000": 70, "8000": 75 },
+      lAir: { "125": 20, "250": 25, "500": 35, "1000": 45, "2000": 50, "3000": 60, "4000": 70, "6000": 75, "8000": 80 },
+      rBone: { "250": 25, "500": 35, "1000": 40, "2000": 50, "4000": 60 },
+      lBone: { "250": 20, "500": 30, "1000": 40, "2000": 45, "4000": 60 },
+    }),
+  },
+  {
+    file: "bilan-moreau-andre-vocale.pdf",
+    format: "pdf",
+    layout: "vocale",
+    patient: { civility: "M.", firstName: "André", lastName: "Moreau", birthDate: "1944-09-09" },
+    examDate: "2026-10-20",
+    audiometry: audiometry({
+      sR: [55, 80, 80],
+      sL: [50, 85, 75],
+      sU: [60, 65, 75],
+      sA: [40, 90, 60],
+      noise: { name: "VRB", u: 8, a: 3 },
+    }),
+  },
+  {
+    file: "photo-moreau-andre-gain-appareils.jpg",
+    format: "jpg",
+    layout: "appareillee",
+    patient: { civility: "M.", firstName: "André", lastName: "Moreau", birthDate: "1944-09-09" },
+    examDate: "2026-11-03",
+    audiometry: audiometry({
+      rAided: { "250": 25, "500": 25, "1000": 25, "2000": 30, "4000": 40 },
+      lAided: { "250": 25, "500": 25, "1000": 30, "2000": 30, "4000": 45 },
+      ffA: { "250": 20, "500": 20, "1000": 25, "2000": 25, "4000": 35 },
+      conf: "medium",
+      low: ["4000"],
+    }),
+  },
 ];
 
 const fmtDate = (iso: string) => iso.split("-").reverse().join("/");
 
 function markerFor(b: DemoBilan) {
-  return `${DEMO_MARKER}${Buffer.from(JSON.stringify(fromAudiometry(b.audiometry))).toString("base64")}`;
+  const raw = { ...fromAudiometry(b.audiometry), aided_sheet: b.layout === "appareillee" };
+  return `${DEMO_MARKER}${Buffer.from(JSON.stringify(raw)).toString("base64")}`;
 }
+
+const hasValues = (c: Curve) => Object.keys(c).length > 0;
+const hasSpeech = (s: Audiometry["right"]["speech"]) => Boolean(s.srt || s.maxScore || s.maxScoreLevel);
 
 /* ---------- Version PDF (style « logiciel d'audiologie », sans rapport avec la marque) ---------- */
 
@@ -267,22 +342,67 @@ function cell(m: { value: number | null; noResponse?: boolean } | undefined) {
   return m.noResponse ? "NR" : m.value === null ? "" : String(m.value);
 }
 
+type SpeechRow = readonly [string, Audiometry["right"]["speech"]];
+
+/** Tableau d'audiométrie vocale du bilan fictif (déclaré hors du rendu). */
+function SpeechTable({ width, rows, noise }: { width: number; rows: SpeechRow[]; noise: Audiometry["noise"] }) {
+  const sp = (s: Audiometry["right"]["speech"]) => [cell(s.srt ?? undefined), cell(s.maxScore ?? undefined), cell(s.maxScoreLevel ?? undefined)];
+  return (
+    <>
+      <Text style={{ fontSize: 9, fontWeight: 700, marginBottom: 3 }}>Audiométrie vocale (listes de Fournier)</Text>
+      <View style={{ flexDirection: "row", backgroundColor: "#e2e8f0", paddingVertical: 2 }}>
+        <Text style={{ width: width - 168, paddingLeft: 3, fontWeight: 700 }} />
+        <Text style={{ width: 56, textAlign: "center", fontWeight: 700 }}>SRT (dB)</Text>
+        <Text style={{ width: 56, textAlign: "center", fontWeight: 700 }}>Max (%)</Text>
+        <Text style={{ width: 56, textAlign: "center", fontWeight: 700 }}>à (dB)</Text>
+      </View>
+      {rows.map(([label, s]) => (
+        <View key={label} style={{ flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#cbd5e1", paddingVertical: 2 }}>
+          <Text style={{ width: width - 168, paddingLeft: 3 }}>{label}</Text>
+          {sp(s).map((v, i) => (
+            <Text key={i} style={{ width: 56, textAlign: "center" }}>
+              {v}
+            </Text>
+          ))}
+        </View>
+      ))}
+      {noise ? (
+        <Text style={{ marginTop: 8 }}>{`${noise.testName} : RSB 50 % sans ${cell(noise.unaidedSnr ?? undefined)} dB / avec ${cell(noise.aidedSnr ?? undefined)} dB`}</Text>
+      ) : null}
+      <Text style={{ marginTop: 10, color: "#475569" }}>Masquage controlatéral appliqué si nécessaire. Résultats non interprétés.</Text>
+    </>
+  );
+}
+
 function BilanPdf({ b }: { b: DemoBilan }) {
   const a = b.audiometry;
+  const layout = b.layout ?? "complet";
+  const aided = layout === "appareillee";
   const freqs = ["125", "250", "500", "1000", "2000", "3000", "4000", "6000", "8000"] as const;
-  const rows: [string, Curve][] = [
+  const allRows: [string, Curve][] = [
     ["OD aérienne", a.right.air],
     ["OD osseuse", a.right.bone],
+    ["OD avec appareil", a.right.aided],
     ["OG aérienne", a.left.air],
     ["OG osseuse", a.left.bone],
+    ["OG avec appareil", a.left.aided],
     ["CL sans appareil", a.freeField.unaided],
     ["CL avec appareils", a.freeField.aided],
   ];
-  const sp = (s: typeof a.right.speech) => [
-    cell(s.srt ?? undefined),
-    cell(s.maxScore ?? undefined),
-    cell(s.maxScoreLevel ?? undefined),
-  ];
+  const rows = allRows.filter(([, curve]) => hasValues(curve));
+  const speechRows = (
+    [
+      ["OD casque", a.right.speech],
+      ["OG casque", a.left.speech],
+      ["CL sans", a.freeField.speechUnaided],
+      ["CL avec", a.freeField.speechAided],
+    ] as const
+  ).filter(([, sp]) => hasSpeech(sp));
+  const showCharts = layout !== "vocale";
+  const showFreeField = layout !== "vocale" && (hasValues(a.freeField.unaided) || hasValues(a.freeField.aided));
+  const showSpeech = speechRows.length > 0;
+  const title = aided ? "GAIN PROTHÉTIQUE — MESURES AVEC APPAREILS" : layout === "vocale" ? "AUDIOMÉTRIE VOCALE" : layout === "tonale" ? "AUDIOMÉTRIE TONALE" : "BILAN AUDIOMÉTRIQUE";
+  const tableTop = showCharts ? 312 : 100;
   return (
     <Document
       title="Bilan audiométrique"
@@ -301,12 +421,12 @@ function BilanPdf({ b }: { b: DemoBilan }) {
           }}
         >
           <View>
-            <Text style={{ fontSize: 14, fontWeight: 700, color: "#0f766e" }}>BILAN AUDIOMÉTRIQUE</Text>
+            <Text style={{ fontSize: 14, fontWeight: 700, color: "#0f766e" }}>{title}</Text>
             <Text style={{ color: "#475569" }}>AudioSoft Démo — document fictif généré pour la démonstration</Text>
           </View>
           <View style={{ alignItems: "flex-end" }}>
             <Text>{`Examen du ${fmtDate(b.examDate)}`}</Text>
-            <Text>Audiomètre : AS-200 (étalonné 01/2026)</Text>
+            <Text>{aided ? "Champ libre, appareils portés" : "Audiomètre : AS-200 (étalonné 01/2026)"}</Text>
           </View>
         </View>
         <View style={{ marginTop: 6, flexDirection: "row", gap: 20 }}>
@@ -314,70 +434,49 @@ function BilanPdf({ b }: { b: DemoBilan }) {
           <Text>{`Né(e) le ${fmtDate(b.patient.birthDate)}`}</Text>
           <Text>Dossier n° DEMO-{b.patient.lastName.slice(0, 3).toUpperCase()}-0001</Text>
         </View>
-        <PdfChart x={32} y={92} title="Oreille droite" series={earSeries(a, "right")} />
-        <PdfChart x={305} y={92} title="Oreille gauche" series={earSeries(a, "left")} />
-        <View style={{ position: "absolute", left: 32, top: 312, width: 531 }}>
-          <Text style={{ fontSize: 9, fontWeight: 700, marginBottom: 3 }}>Audiométrie tonale (dB HL)</Text>
-          <View style={{ flexDirection: "row", backgroundColor: "#e2e8f0", paddingVertical: 2 }}>
-            <Text style={{ width: 90, paddingLeft: 3, fontWeight: 700 }}>Hz</Text>
-            {freqs.map((f) => (
-              <Text key={f} style={{ width: 48, textAlign: "center", fontWeight: 700 }}>
-                {f}
-              </Text>
+        {showCharts ? (
+          <>
+            <PdfChart x={32} y={92} title={aided ? "Oreille droite — avec appareil (A)" : "Oreille droite"} series={earSeries(a, "right")} />
+            <PdfChart x={305} y={92} title={aided ? "Oreille gauche — avec appareil (A)" : "Oreille gauche"} series={earSeries(a, "left")} />
+          </>
+        ) : null}
+        {rows.length ? (
+          <View style={{ position: "absolute", left: 32, top: tableTop, width: 531 }}>
+            <Text style={{ fontSize: 9, fontWeight: 700, marginBottom: 3 }}>{aided ? "Seuils avec appareils (dB HL, champ libre)" : "Audiométrie tonale (dB HL)"}</Text>
+            <View style={{ flexDirection: "row", backgroundColor: "#e2e8f0", paddingVertical: 2 }}>
+              <Text style={{ width: 90, paddingLeft: 3, fontWeight: 700 }}>Hz</Text>
+              {freqs.map((f) => (
+                <Text key={f} style={{ width: 48, textAlign: "center", fontWeight: 700 }}>
+                  {f}
+                </Text>
+              ))}
+            </View>
+            {rows.map(([label, curve]) => (
+              <View
+                key={label}
+                style={{ flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#cbd5e1", paddingVertical: 2 }}
+              >
+                <Text style={{ width: 90, paddingLeft: 3 }}>{label}</Text>
+                {freqs.map((f) => (
+                  <Text key={f} style={{ width: 48, textAlign: "center" }}>
+                    {cell(curve[f])}
+                  </Text>
+                ))}
+              </View>
             ))}
           </View>
-          {rows.map(([label, curve]) => (
-            <View
-              key={label}
-              style={{ flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#cbd5e1", paddingVertical: 2 }}
-            >
-              <Text style={{ width: 90, paddingLeft: 3 }}>{label}</Text>
-              {freqs.map((f) => (
-                <Text key={f} style={{ width: 48, textAlign: "center" }}>
-                  {cell(curve[f])}
-                </Text>
-              ))}
-            </View>
-          ))}
-        </View>
-        <PdfChart x={32} y={470} title="Champ libre (S sans / A avec)" series={freeFieldSeries(a)} />
-        <View style={{ position: "absolute", left: 305, top: 470, width: 258 }}>
-          <Text style={{ fontSize: 9, fontWeight: 700, marginBottom: 3 }}>Audiométrie vocale (listes de Fournier)</Text>
-          <View style={{ flexDirection: "row", backgroundColor: "#e2e8f0", paddingVertical: 2 }}>
-            <Text style={{ width: 88, paddingLeft: 3, fontWeight: 700 }} />
-            <Text style={{ width: 56, textAlign: "center", fontWeight: 700 }}>SRT (dB)</Text>
-            <Text style={{ width: 56, textAlign: "center", fontWeight: 700 }}>Max (%)</Text>
-            <Text style={{ width: 56, textAlign: "center", fontWeight: 700 }}>à (dB)</Text>
+        ) : null}
+        {showFreeField ? <PdfChart x={32} y={470} title="Champ libre (S sans / A avec)" series={freeFieldSeries(a)} /> : null}
+        {showSpeech && showCharts ? (
+          <View style={{ position: "absolute", left: showFreeField ? 305 : 32, top: 470, width: showFreeField ? 258 : 531 }}>
+            <SpeechTable width={showFreeField ? 258 : 531} rows={speechRows} noise={a.noise} />
           </View>
-          {(
-            [
-              ["OD casque", a.right.speech],
-              ["OG casque", a.left.speech],
-              ["CL sans", a.freeField.speechUnaided],
-              ["CL avec", a.freeField.speechAided],
-            ] as const
-          ).map(([label, s]) => (
-            <View
-              key={label}
-              style={{ flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#cbd5e1", paddingVertical: 2 }}
-            >
-              <Text style={{ width: 88, paddingLeft: 3 }}>{label}</Text>
-              {sp(s).map((v, i) => (
-                <Text key={i} style={{ width: 56, textAlign: "center" }}>
-                  {v}
-                </Text>
-              ))}
-            </View>
-          ))}
-          {a.noise ? (
-            <Text
-              style={{ marginTop: 8 }}
-            >{`${a.noise.testName} : RSB 50 % sans ${cell(a.noise.unaidedSnr ?? undefined)} dB / avec ${cell(a.noise.aidedSnr ?? undefined)} dB`}</Text>
-          ) : null}
-          <Text style={{ marginTop: 10, color: "#475569" }}>
-            Masquage controlatéral appliqué si nécessaire. Résultats non interprétés.
-          </Text>
-        </View>
+        ) : null}
+        {showSpeech && !showCharts ? (
+          <View style={{ position: "absolute", left: 32, top: 110, width: 531 }}>
+            <SpeechTable width={531} rows={speechRows} noise={a.noise} />
+          </View>
+        ) : null}
         <Text style={{ position: "absolute", left: 32, bottom: 24, fontSize: 7, color: "#64748b" }}>
           Données entièrement fictives — LIAISON ORL, jeu de démonstration.
         </Text>
@@ -422,17 +521,19 @@ function svgChart(x: number, y: number, title: string, series: ChartSeries[]): s
 
 async function bilanJpeg(b: DemoBilan): Promise<Buffer> {
   const a = b.audiometry;
+  const aided = b.layout === "appareillee";
   const W = 1240;
   const H = 1754;
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="#fbfaf7"/>`;
-  svg += `<text x="70" y="90" font-size="36" font-family="Arial" font-weight="bold" fill="#0f766e">BILAN AUDIOMÉTRIQUE</text>`;
+  svg += `<text x="70" y="90" font-size="36" font-family="Arial" font-weight="bold" fill="#0f766e">${aided ? "GAIN PROTHÉTIQUE — AVEC APPAREILS" : "BILAN AUDIOMÉTRIQUE"}</text>`;
   svg += `<text x="70" y="130" font-size="20" font-family="Arial" fill="#334155">Patient : ${b.patient.civility} ${b.patient.lastName.toUpperCase()} ${b.patient.firstName} — né(e) le ${fmtDate(b.patient.birthDate)} — examen du ${fmtDate(b.examDate)}</text>`;
-  svg += svgChart(70, 200, "Oreille droite", earSeries(a, "right"));
-  svg += svgChart(650, 200, "Oreille gauche", earSeries(a, "left"));
-  svg += svgChart(70, 700, "Champ libre S / A", freeFieldSeries(a));
+  if (aided) svg += `<text x="70" y="165" font-size="20" font-family="Arial" fill="#334155">Seuils en champ libre, appareils portés (A) — oreille testée seule puis les deux</text>`;
+  svg += svgChart(70, 200, aided ? "Oreille droite — avec appareil (A)" : "Oreille droite", earSeries(a, "right"));
+  svg += svgChart(650, 200, aided ? "Oreille gauche — avec appareil (A)" : "Oreille gauche", earSeries(a, "left"));
+  if (hasValues(a.freeField.unaided) || hasValues(a.freeField.aided)) svg += svgChart(70, 700, aided ? "Champ libre binaural — avec appareils (A)" : "Champ libre S / A", freeFieldSeries(a));
   const lines = [
-    `CL sans : SRT ${cell(a.freeField.speechUnaided.srt ?? undefined)} dB — max ${cell(a.freeField.speechUnaided.maxScore ?? undefined)} %`,
-    `CL avec : SRT ${cell(a.freeField.speechAided.srt ?? undefined)} dB — max ${cell(a.freeField.speechAided.maxScore ?? undefined)} %`,
+    ...(hasSpeech(a.freeField.speechUnaided) ? [`CL sans : SRT ${cell(a.freeField.speechUnaided.srt ?? undefined)} dB — max ${cell(a.freeField.speechUnaided.maxScore ?? undefined)} %`] : []),
+    ...(hasSpeech(a.freeField.speechAided) ? [`CL avec : SRT ${cell(a.freeField.speechAided.srt ?? undefined)} dB — max ${cell(a.freeField.speechAided.maxScore ?? undefined)} %`] : []),
     "Document fictif — démonstration",
   ];
   lines.forEach(

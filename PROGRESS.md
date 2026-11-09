@@ -1,6 +1,21 @@
 # Avancement
 
-État au 2026-10-28 : **toutes les phases sont terminées**, refonte des documents sortants et changement de périmètre de l'adressage compris. Le parcours complet fonctionne de bout en bout en mode démo (sans aucune clé) et il est couvert par les tests automatisés.
+État au 2026-11-09 : **toutes les phases sont terminées**, refonte des documents sortants, changement de périmètre de l'adressage et **bilan en plusieurs fichiers fusionnés** compris. Le parcours complet fonctionne de bout en bout en mode démo (sans aucune clé) et il est couvert par les tests automatisés.
+
+## Bilan en plusieurs fichiers, fusion automatique, gain prothétique (2026-11-09)
+
+Demande du propriétaire : l'audioprothésiste « balance » plusieurs documents d'un coup (tonale au casque, audiométrie vocale à part, mesures avec appareils pour le gain prothétique) et l'application assemble elle-même les mesures pour compléter le compte rendu. Décisions n° 75 à 84 dans [DECISIONS.md](DECISIONS.md).
+
+- **Dépôt multiple** : fichiers, photos, collage de captures, glisser-déposer n'importe où ; 6 fichiers au plus par compte rendu ; lecture par l'IA de chaque fichier en parallèle (3 au plus) avec une ligne de progression par fichier (envoi → lecture → extraction → lu : N mesures), puis étape « Fusion des mesures ».
+- **Fusion en code, déterministe** (`src/lib/audiology/merge.ts`) : repli des fichiers par ordre de dépôt, provenance par mesure (infobulle « Lu dans … »), valeurs saisies à la main toujours conservées, **conflits** entre lectures (> 5 dB, ou ≠ en %) : la lecture la plus sûre est retenue en confiance faible et la liste des conflits propose chaque candidat ou la réinterprétation du fichier. Le bilan fusionné vit sur le document (`documents.bilan`), hors du formulaire sauvegardé automatiquement ; tout changement de fichier recalcule la fusion et lève la confirmation.
+- **Interprétation par fichier** : automatique (le modèle reconnaît une feuille « avec appareils »), sans appareil, avec appareils (menu de chaque fichier).
+- **Courbes appareillées par oreille** (OD / OG — appareillée, marqueur « A ») en plus du champ libre binaural ; **gain par oreille** avec référence affichée (champ libre sans appareil, sinon conduction aérienne au casque) à l'écran et dans le PDF (tableau par oreille, note de référence).
+- **Bilan vocal seul accepté** ; vérification unique du bilan fusionné avec sélecteur de fichier (la case au focus affiche son fichier d'origine) ; lecture seule après validation avec les mêmes fichiers.
+- **Cohérence** : le PDF et le commentaire ne lisent que le bilan confirmé ; l'aperçu se rafraîchit à la confirmation ; un commentaire rédigé avant une correction des mesures est signalé « à mettre à jour ».
+- **Prompt d'extraction v2** (plusieurs documents, `aided_sheet`, courbes `right_aided` / `left_aided`, vocale seule) ; les marqueurs des bilans fictifs v1 restent lus.
+- **Démo** : trois fichiers découpés pour M. Moreau (tonale PDF, vocale PDF, photo « gain prothétique » avec appareils) fusionnés et confirmés dans un compte rendu validé ; brouillon de Mme Lefort avec deux fichiers et deux conflits à trancher ; `npm run bilans:generate`.
+- **Tests** : fusion (14 cas), calculs (gain par oreille, décomptes), schéma d'extraction v2, services (fusion de trois fichiers, retrait, réinterprétation, conflits, plafond, instantané de validation), PDF (nouvelle fixture `compte-rendu-gain-par-oreille`, zones Pingen conformes), E2E « trois fichiers d'un coup ».
+- Aucune migration : `data.attachmentId` disparaît du schéma (clé inconnue ignorée), la base de production était vide.
 
 ## Changement de périmètre : adressage non envoyable (2026-10-28)
 
@@ -69,11 +84,11 @@ Refonte de tous les documents et e-mails sortants : sobres, lisibles, paramétr�
 
 | Commande | Résultat |
 |---|---|
-| `npm run lint` | ✅ 0 erreur, 0 avertissement (2026-10-28) |
+| `npm run lint` | ✅ 0 erreur, 0 avertissement (2026-11-09) |
 | `npm run typecheck` | ✅ |
-| `npm run test` | ✅ 43 fichiers, 331 tests (unitaires, intégration sur base MongoDB embarquée, zones Pingen, non-régression visuelle PDF et e-mails) |
+| `npm run test` | ✅ 45 fichiers, 367 tests (unitaires, intégration sur base MongoDB embarquée, zones Pingen, non-régression visuelle PDF et e-mails) |
 | `npm run build` | ✅ |
-| `npm run render:docs` | ✅ 16 PDF, zones Pingen conformes partout |
+| `npm run render:docs` | ✅ 18 PDF, zones Pingen conformes partout |
 | `npm run test:e2e` | ⚠️ 22 / 27 (2026-10-28) : adressage (impression / téléchargement) et compte rendu (envoi + lien sécurisé) ✅ ; 5 échecs **antérieurs**, voir « Problèmes connus » n° 8 |
 
 ## Ce qui est livré
@@ -82,7 +97,7 @@ Refonte de tous les documents et e-mails sortants : sobres, lisibles, paramétr�
 - Accueil orienté action : « Nouvel adressage » / « Nouveau compte rendu », brouillons à finir, comptes rendus prêts à envoyer, envois récents, erreurs d'envoi.
 - Éditeur sur un seul écran : formulaire à gauche, **aperçu PDF exact en direct** à droite (onglets sur mobile), sauvegarde automatique permanente (avec copie locale de secours), validation explicite.
 - PDF refondus (2026-10-27) : courrier de cabinet sobre en Inter, couleurs issues de la marque, audiogramme vectoriel et gain prothétique, version postale conforme aux zones Pingen (voir « Refonte documents »).
-- Compte rendu : dépôt du bilan (glisser-déposer, coller, photo), étapes lisibles, **lecture par l'IA** avec niveau de confiance par valeur, tableau de correction et audiogrammes redessinés, **degré BIAP et gain prothétique calculés en code** (règle affichée), commentaire rédigé (plus court / plus détaillé / plus technique), badges « Suggéré par l'IA » jusqu'à validation.
+- Compte rendu : dépôt du bilan **en un ou plusieurs fichiers** (glisser-déposer, coller, photos), lecture par l'IA de chaque fichier avec niveau de confiance par valeur, **fusion automatique** (provenance, conflits signalés, interprétation avec / sans appareils par fichier), tableau de correction et audiogrammes redessinés, **degré BIAP et gain prothétique (binaural et par oreille, référence affichée) calculés en code**, commentaire rédigé (plus court / plus détaillé / plus technique), badges « Suggéré par l'IA » jusqu'à validation.
 - Adressage : motif « Autre » reformulé par l'IA à partir de quelques mots ; dictée vocale nettoyée par l'IA ; après validation, **impression** et **téléchargement du PDF** (jamais d'envoi).
 - Valeurs mémorisées (marque, classe, rechargeable…), prescripteur habituel proposé automatiquement.
 - Envoi (compte rendu uniquement) : récapitulatif (aperçu, destinataire, canaux, coût du courrier, alertes), e-mail avec **lien sécurisé à second facteur** (ou pièce jointe si l'admin l'autorise), courrier Pingen (lettre verte, rapide ou recommandée), suivi des statuts par webhooks + interrogation périodique, renvoi en un clic, correction d'adresse après refus, **envoi groupé**.
@@ -104,12 +119,13 @@ Refonte de tous les documents et e-mails sortants : sobres, lisibles, paramétr�
 **Exploitation**
 - `npm run demo` (tout en local, sans clé), `npm run seed`, `npm run admin:create`, `npm run db:indexes`, `npm run ai:check`, `npm run render:docs`, `npm run render:emails`, `npm run pingen:check`.
 - [README.md](README.md) : mise en production pas à pas (Atlas, S3, Anthropic, Resend, Pingen, Vercel, domaine, webhooks, premier administrateur, vérifications, conformité).
-- [DECISIONS.md](DECISIONS.md) : 73 décisions argumentées.
+- [DECISIONS.md](DECISIONS.md) : 84 décisions argumentées.
 
 ## Tests de bout en bout (Playwright, mode démo)
 
 - Adressage complet : patient → prescripteur habituel proposé → motif reformulé par l'IA → validation → PDF affiché → **téléchargement** (`courrier-adressage-v1.pdf`) → **impression** (PDF chargé dans le cadre d'impression) ; aucune action d'envoi, page d'envoi refusée, filtres Envoyés / Erreurs absents.
 - Compte rendu complet : dépôt d'un bilan PDF → extraction → confirmation → commentaire rédigé → validation → envoi e-mail + courrier → **ouverture du lien sécurisé côté médecin** (mauvaise puis bonne date de naissance, PDF téléchargé) → statut « Ouvert ».
+- Compte rendu en **trois fichiers déposés d'un coup** (tonale, vocale, mesures avec appareils) : progression par fichier → fusion → vérification unique (trois fichiers d'origine consultables, seuils appareillés et vocale fusionnés) → confirmation → degré suggéré → commentaire citant le gain.
 - Droits (assistante sans droit d'envoi, API non authentifiées), authentification (2FA admin, accès admin refusé), sécurité (en-têtes, CSP à nonce, cron, webhooks non signés, aucune erreur JavaScript ni violation de CSP), administration (toutes les pages, invitation, export d'audit), annuaire et palette.
 - **Accessibilité** : axe-core WCAG 2.2 AA + bonnes pratiques, **0 violation** sur les écrans publics, principaux, éditeur et admin, en clair et en sombre ; navigation au clavier (lien d'évitement, palette, raccourcis).
 - **Mobile** (Pixel 7) : menu, éditeur à onglets, aucune page qui déborde horizontalement.

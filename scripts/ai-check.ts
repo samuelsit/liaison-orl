@@ -20,29 +20,47 @@ async function main() {
   const { emptyCompteRendu } = await import("@/lib/documents/defaults");
   const { estimateCostMicroUsd } = await import("@/ai");
   const provider = new AnthropicProvider(env().ANTHROPIC_API_KEY!);
-  const file = process.argv[2] ?? "demo/bilans/bilan-durand-jeanne.pdf";
-  const data = readFileSync(file);
-  const truth = readDemoMarker(data);
-  console.log(`▶ Lecture de ${file} avec ${env().AI_MODEL_VISION}…`);
-  const t0 = Date.now();
-  const res = await provider.extract({ data, mimeType: file.endsWith(".pdf") ? "application/pdf" : "image/jpeg" });
-  const parsed = rawExtractionSchema.safeParse(res.raw);
-  if (!parsed.success) throw new Error(`Sortie non conforme : ${parsed.error.message}`);
-  const a = toAudiometry(parsed.data);
-  console.log(`  ${Date.now() - t0} ms — ${res.usage.inputTokens} jetons en entrée, ${res.usage.outputTokens} en sortie (~${(estimateCostMicroUsd(res.usage.model, res.usage) / 1e6).toFixed(4)} $)`);
-  if (truth) {
-    const t = toAudiometry(truth);
-    let ok = 0;
-    let total = 0;
-    for (const ear of ["right", "left"] as const) {
-      for (const kind of ["air", "bone"] as const) {
-        for (const [f, m] of Object.entries(t[ear][kind])) {
-          total++;
-          if (a[ear][kind][f as keyof typeof a.right.air]?.value === m!.value) ok++;
+  // Par défaut : un bilan complet, puis le bilan en trois documents (tonale, vocale, mesures avec appareils).
+  const files = process.argv.slice(2).length
+    ? process.argv.slice(2)
+    : ["demo/bilans/bilan-durand-jeanne.pdf", "demo/bilans/bilan-moreau-andre-tonale.pdf", "demo/bilans/bilan-moreau-andre-vocale.pdf", "demo/bilans/photo-moreau-andre-gain-appareils.jpg"];
+  let a = toAudiometry({ ...rawExtractionSchema.parse({ is_audiogram: true, thresholds: [], speech: [], noise_test_name: "", noise: [], notes: "" }) });
+  for (const file of files) {
+    const data = readFileSync(file);
+    const truth = readDemoMarker(data);
+    console.log(`▶ Lecture de ${file} avec ${env().AI_MODEL_VISION}…`);
+    const t0 = Date.now();
+    const res = await provider.extract({ data, mimeType: file.endsWith(".pdf") ? "application/pdf" : "image/jpeg" });
+    const parsed = rawExtractionSchema.safeParse(res.raw);
+    if (!parsed.success) throw new Error(`Sortie non conforme : ${parsed.error.message}`);
+    a = toAudiometry(parsed.data);
+    console.log(`  ${Date.now() - t0} ms — ${res.usage.inputTokens} jetons en entrée, ${res.usage.outputTokens} en sortie (~${(estimateCostMicroUsd(res.usage.model, res.usage) / 1e6).toFixed(4)} $)`);
+    console.log(`  Feuille « avec appareils » : ${parsed.data.aided_sheet ? "oui" : "non"}${truth ? ` (attendu : ${truth.aided_sheet ? "oui" : "non"})` : ""}`);
+    if (truth) {
+      const t = toAudiometry(truth);
+      let ok = 0;
+      let total = 0;
+      for (const ear of ["right", "left"] as const) {
+        for (const kind of ["air", "bone", "aided"] as const) {
+          for (const [f, m] of Object.entries(t[ear][kind])) {
+            total++;
+            if (a[ear][kind][f as keyof typeof a.right.air]?.value === m!.value) ok++;
+          }
         }
       }
+      const speechTruth = [t.right.speech, t.left.speech, t.freeField.speechUnaided, t.freeField.speechAided];
+      const speechRead = [a.right.speech, a.left.speech, a.freeField.speechUnaided, a.freeField.speechAided];
+      let sOk = 0;
+      let sTotal = 0;
+      speechTruth.forEach((s, i) => {
+        for (const k of ["srt", "maxScore", "maxScoreLevel"] as const) {
+          if (!s[k]) continue;
+          sTotal++;
+          if (speechRead[i]![k]?.value === s[k]!.value) sOk++;
+        }
+      });
+      console.log(`  Seuils tonals relus correctement : ${ok}/${total}${sTotal ? ` · vocale : ${sOk}/${sTotal}` : ""}`);
     }
-    console.log(`  Seuils relus correctement : ${ok}/${total}`);
   }
   console.log(`▶ Rédaction d'un commentaire avec ${env().AI_MODEL_TEXT}…`);
   const facts = buildCommentFacts({ ...emptyCompteRendu("2026-10-17"), ears: "deux", deviceType: "ecouteur_deporte", deviceBrand: "signia", rechargeable: true, wearHoursPerDay: 11, wearDuration: "3 semaines", handling: "oui" }, a, { civility: "Mme", birthDate: "1946-03-12" }, "");
