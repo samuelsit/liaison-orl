@@ -31,6 +31,24 @@ describe("patients", () => {
     expect((await listPatients(c1, { q: "12/03" })).total).toBe(0);
   });
 
+  it("partage l'annuaire entre courrier d'adressage et compte rendu, y compris depuis un autre centre de l'utilisateur", async () => {
+    const { org, centres } = await createTestOrg({ centres: 2 });
+    const ctx = await createTestContext(org, centres);
+    // Patient créé en rédigeant un courrier d'adressage…
+    const p = (await createPatient(ctx, { civility: "Mme", lastName: "Garnier", firstName: "Louise", birthDate: "1952-06-30" })).created!;
+    const adressage = await createDocument(ctx, "ADRESSAGE", { patientId: p.id });
+    expect(adressage.patientId).toBe(p.id);
+    // … proposé tel quel dans la recherche du compte rendu (même collection, aucun filtre par type de document).
+    expect((await listPatients(ctx, { q: "garn" })).items.map((x) => x.id)).toEqual([p.id]);
+    const cr = await createDocument(ctx, "COMPTE_RENDU", { patientId: p.id });
+    expect(cr.patientId).toBe(p.id);
+    // Depuis l'autre centre de la même personne : absent de la liste du centre actif, présent dans « tous mes centres », utilisable.
+    const elsewhere = { ...ctx, activeCentre: centres[1]! };
+    expect((await listPatients(elsewhere, { q: "garn" })).total).toBe(0);
+    expect((await listPatients(elsewhere, { q: "garn", scope: "all" })).items.map((x) => x.id)).toEqual([p.id]);
+    expect((await createDocument(elsewhere, "COMPTE_RENDU", { patientId: p.id })).patientId).toBe(p.id);
+  });
+
   it("supprime en cascade (admin uniquement)", async () => {
     const { org, centres } = await createTestOrg();
     const audio = await createTestContext(org, centres);

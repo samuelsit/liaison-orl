@@ -36,6 +36,9 @@ export function PatientCombobox({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<PatientView[]>([]);
+  /** Patients des autres centres de l'utilisateur (même annuaire) : proposés quand on cherche. */
+  const [others, setOthers] = useState<PatientView[]>([]);
+  const centreName = (id: string) => centres.find((c) => c.id === id)?.name ?? "";
   const [loading, setLoading] = useState(false);
   const [highlight, setHighlight] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -48,10 +51,18 @@ export function PatientCombobox({
       setLoading(true);
       try {
         const res = await searchPatientsAction(query);
-        if (!cancelled) {
-          setItems(res);
-          setHighlight(res[0]?.id ?? "__create__");
-        }
+        if (cancelled) return;
+        setItems(res);
+        setHighlight(res[0]?.id ?? "__create__");
+        // Un patient créé depuis un autre centre reste trouvable : l'annuaire est commun à tous les documents.
+        if (query.trim() && centres.length > 1) {
+          const all = await searchPatientsAction(query, "all");
+          if (!cancelled) {
+            const extra = all.filter((p) => !res.some((r) => r.id === p.id));
+            setOthers(extra);
+            if (!res.length && extra[0]) setHighlight(extra[0].id);
+          }
+        } else if (!cancelled) setOthers([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -60,7 +71,7 @@ export function PatientCombobox({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [query, open]);
+  }, [query, open, centres.length]);
 
   const words = query.trim().split(/\s+/);
   const prefill = words.length > 1 ? { lastName: words.slice(0, -1).join(" "), firstName: words.at(-1) } : { lastName: query.trim() };
@@ -103,26 +114,20 @@ export function PatientCombobox({
                 </div>
               ) : null}
               <CommandEmpty>Aucun patient trouvé dans ce centre.</CommandEmpty>
+              {!loading && query.trim() && !items.length && !others.length ? (
+                <p className="px-3 py-2 text-xs text-muted-foreground">Aucun patient trouvé dans vos centres.</p>
+              ) : null}
               {items.length ? (
                 <CommandGroup heading={query ? "Résultats" : "Patients récents du centre"}>
                   {items.map((p) => (
-                    <CommandItem
-                      key={p.id}
-                      value={p.id}
-                      onSelect={() => {
-                        onChange(p);
-                        setOpen(false);
-                        setQuery("");
-                      }}
-                    >
-                      <Check className={cn(value?.id === p.id ? "opacity-100" : "opacity-0")} aria-hidden />
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-medium">
-                          {p.civility} {formatPersonName(p.firstName, p.lastName)}
-                        </span>
-                        <span className="block text-xs text-muted-foreground">{p.birthDate ? formatIsoDate(p.birthDate) : "—"}</span>
-                      </span>
-                    </CommandItem>
+                    <PatientItem key={p.id} p={p} selected={value?.id === p.id} onSelect={() => (onChange(p), setOpen(false), setQuery(""))} />
+                  ))}
+                </CommandGroup>
+              ) : null}
+              {others.length ? (
+                <CommandGroup heading="Dans vos autres centres">
+                  {others.map((p) => (
+                    <PatientItem key={p.id} p={p} selected={value?.id === p.id} centre={centreName(p.centreId)} onSelect={() => (onChange(p), setOpen(false), setQuery(""))} />
                   ))}
                 </CommandGroup>
               ) : null}
@@ -157,5 +162,23 @@ export function PatientCombobox({
         }}
       />
     </>
+  );
+}
+
+/** Ligne de patient dans la liste : identité, date de naissance et, pour un autre centre, le nom du centre. */
+function PatientItem({ p, selected, centre, onSelect }: { p: PatientView; selected: boolean; centre?: string; onSelect: () => void }) {
+  return (
+    <CommandItem value={p.id} onSelect={onSelect}>
+      <Check className={cn(selected ? "opacity-100" : "opacity-0")} aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">
+          {p.civility} {formatPersonName(p.firstName, p.lastName)}
+        </span>
+        <span className="block text-xs text-muted-foreground">
+          {p.birthDate ? formatIsoDate(p.birthDate) : "—"}
+          {centre ? ` · ${centre}` : ""}
+        </span>
+      </span>
+    </CommandItem>
   );
 }

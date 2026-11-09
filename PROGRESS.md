@@ -16,6 +16,7 @@ Demande du propriétaire : l'audioprothésiste « balance » plusieurs documents
 - **Démo** : trois fichiers découpés pour M. Moreau (tonale PDF, vocale PDF, photo « gain prothétique » avec appareils) fusionnés et confirmés dans un compte rendu validé ; brouillon de Mme Lefort avec deux fichiers et deux conflits à trancher ; `npm run bilans:generate`.
 - **Tests** : fusion (14 cas), calculs (gain par oreille, décomptes), schéma d'extraction v2, services (fusion de trois fichiers, retrait, réinterprétation, conflits, plafond, instantané de validation), PDF (nouvelle fixture `compte-rendu-gain-par-oreille`, zones Pingen conformes), E2E « trois fichiers d'un coup ».
 - Aucune migration : `data.attachmentId` disparaît du schéma (clé inconnue ignorée), la base de production était vide.
+- **Annuaire des patients commun** (vérification demandée par le propriétaire) : un patient créé depuis un courrier d'adressage est proposé tel quel dans un compte rendu (une seule collection, même combobox) ; le combobox propose en plus les patients des autres centres de l'utilisateur quand on cherche un nom (décision n° 85, test d'intégration ajouté).
 
 ## Changement de périmètre : adressage non envoyable (2026-10-28)
 
@@ -119,7 +120,7 @@ Refonte de tous les documents et e-mails sortants : sobres, lisibles, paramétr�
 **Exploitation**
 - `npm run demo` (tout en local, sans clé), `npm run seed`, `npm run admin:create`, `npm run db:indexes`, `npm run ai:check`, `npm run render:docs`, `npm run render:emails`, `npm run pingen:check`.
 - [README.md](README.md) : mise en production pas à pas (Atlas, S3, Anthropic, Resend, Pingen, Vercel, domaine, webhooks, premier administrateur, vérifications, conformité).
-- [DECISIONS.md](DECISIONS.md) : 84 décisions argumentées.
+- [DECISIONS.md](DECISIONS.md) : 85 décisions argumentées.
 
 ## Tests de bout en bout (Playwright, mode démo)
 
