@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyAudiometry, type Curve } from "@/lib/schemas/audiometry";
-import { biapClass, globalLoss, prostheticGain, ptaBiap, suggestDegree } from "./calculations";
+import { biapClass, countAllMeasures, countMeasures, globalLoss, prostheticGain, ptaBiap, suggestDegree } from "./calculations";
 
 const curve = (values: Record<string, number | null>): Curve =>
   Object.fromEntries(Object.entries(values).map(([k, v]) => [k, { value: v, confidence: "high" as const }]));
@@ -84,6 +84,70 @@ describe("gain prothétique", () => {
     expect(g.noise).toBeNull();
   });
   it("renvoie null sans mesures en champ libre", () => {
-    expect(prostheticGain(emptyAudiometry()).mean).toBeNull();
+    const g = prostheticGain(emptyAudiometry());
+    expect(g.mean).toBeNull();
+    expect(g.meanSource).toBeNull();
+    expect(g.perEar).toEqual({ right: null, left: null });
+    expect(g.rule).toBeNull();
+  });
+
+  it("calcule le gain par oreille contre le champ libre sans appareil quand il existe", () => {
+    const a = emptyAudiometry();
+    a.freeField.unaided = curve({ "500": 50, "1000": 55, "2000": 60, "4000": 70 });
+    a.right.aided = curve({ "500": 30, "1000": 30, "2000": 35, "4000": 45 });
+    a.left.aided = curve({ "500": 35, "1000": 35, "2000": 40, "4000": 50 });
+    const g = prostheticGain(a);
+    expect(g.perEar.right?.reference).toBe("free_field");
+    expect(g.perEar.right?.mean).toBe(23.8);
+    expect(g.perEar.left?.mean).toBe(18.8);
+    // Pas de champ libre binaural avec appareils : le gain moyen est la moyenne des deux oreilles.
+    expect(g.perFrequency).toEqual([]);
+    expect(g.meanSource).toBe("per_ear");
+    expect(g.mean).toBe(21.3);
+    expect(g.meanFrequencies).toEqual(["500", "1000", "2000", "4000"]);
+    expect(g.rule).toContain("par oreille");
+    expect(g.rule).not.toContain("casque");
+  });
+
+  it("prend la conduction aérienne au casque comme référence si le champ libre sans appareil manque, et l'affiche", () => {
+    const a = emptyAudiometry();
+    a.right.air = curve({ "500": 40, "1000": 45, "2000": 50, "4000": 65 });
+    a.right.aided = curve({ "500": 25, "1000": 25, "2000": 30, "4000": 40 });
+    const g = prostheticGain(a);
+    expect(g.perEar.right?.reference).toBe("air");
+    expect(g.perEar.right?.mean).toBe(20);
+    expect(g.perEar.left).toBeNull();
+    expect(g.mean).toBe(20);
+    expect(g.meanSource).toBe("per_ear");
+    expect(g.rule).toContain("casque");
+  });
+
+  it("préfère le gain binaural en champ libre quand il est mesuré", () => {
+    const a = emptyAudiometry();
+    a.freeField.unaided = curve({ "500": 50, "1000": 50, "2000": 50, "4000": 50 });
+    a.freeField.aided = curve({ "500": 30, "1000": 30, "2000": 30, "4000": 30 });
+    a.right.aided = curve({ "500": 40, "1000": 40, "2000": 40, "4000": 40 });
+    const g = prostheticGain(a);
+    expect(g.mean).toBe(20);
+    expect(g.meanSource).toBe("free_field");
+    expect(g.perEar.right?.mean).toBe(10);
+  });
+});
+
+describe("décompte des mesures", () => {
+  it("compte les courbes appareillées par oreille et, au total, la vocale et le bruit", () => {
+    const a = emptyAudiometry();
+    a.right.aided = curve({ "1000": 30 });
+    a.left.speech = { srt: { value: 40, confidence: "high" }, maxScore: { value: 90, confidence: "high" }, maxScoreLevel: null };
+    a.noise = { testName: "VRB", unaidedSnr: { value: 5, confidence: "high" }, aidedSnr: null, unaidedScore: null, aidedScore: null };
+    expect(countMeasures(a)).toBe(1);
+    expect(countAllMeasures(a)).toBe(4);
+  });
+
+  it("considère un bilan vocal seul comme exploitable", () => {
+    const a = emptyAudiometry();
+    a.freeField.speechAided = { srt: { value: 35, confidence: "high" }, maxScore: null, maxScoreLevel: null };
+    expect(countMeasures(a)).toBe(0);
+    expect(countAllMeasures(a)).toBe(1);
   });
 });

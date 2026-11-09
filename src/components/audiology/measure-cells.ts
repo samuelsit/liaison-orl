@@ -1,14 +1,16 @@
 import type { Audiometry, Curve, FreqKey, Measure, NoiseTest, Speech } from "@/lib/schemas/audiometry";
 import { FREQ_KEYS, MAIN_FREQUENCIES } from "@/lib/schemas/audiometry";
+import { gainReference } from "@/lib/audiology/calculations";
 
 /*
  * Modèle d'affichage de l'audiométrie (tableau de correction, saisie mobile,
  * audiogrammes) : fonctions pures, sans effet sur les calculs (BIAP, gain).
  */
 
-export type CurvePath = "right.air" | "right.bone" | "left.air" | "left.bone" | "freeField.unaided" | "freeField.aided";
+export type CurvePath = "right.air" | "right.bone" | "right.aided" | "left.air" | "left.bone" | "left.aided" | "freeField.unaided" | "freeField.aided";
 export type EarGroup = "right" | "left" | "freeField";
-export type CurveKind = "air" | "bone" | "unaided" | "aided";
+/** `earAided` : champ libre avec appareil, une oreille seule. */
+export type CurveKind = "air" | "bone" | "earAided" | "unaided" | "aided";
 export type SpeechTarget = "right" | "left" | "speechUnaided" | "speechAided";
 export type SpeechKey = keyof Speech;
 export type NoiseKey = "unaidedSnr" | "aidedSnr" | "unaidedScore" | "aidedScore";
@@ -26,8 +28,10 @@ export interface GridRow {
 export const GRID_ROWS: readonly GridRow[] = [
   { path: "right.air", ear: "right", kind: "air", marker: "O", label: "OD — aérienne" },
   { path: "right.bone", ear: "right", kind: "bone", marker: "<", label: "OD — osseuse" },
+  { path: "right.aided", ear: "right", kind: "earAided", marker: "A", label: "OD — appareillée" },
   { path: "left.air", ear: "left", kind: "air", marker: "X", label: "OG — aérienne" },
   { path: "left.bone", ear: "left", kind: "bone", marker: ">", label: "OG — osseuse" },
+  { path: "left.aided", ear: "left", kind: "earAided", marker: "A", label: "OG — appareillée" },
   { path: "freeField.unaided", ear: "freeField", kind: "unaided", marker: "S", label: "Champ libre sans" },
   { path: "freeField.aided", ear: "freeField", kind: "aided", marker: "A", label: "Champ libre avec" },
 ];
@@ -230,8 +234,10 @@ export function moveInGrid(pos: GridPos, move: GridMove, rows: number, cols: num
 const SERIES_TO_PATH: Record<string, CurvePath> = {
   "right-air": "right.air",
   "right-bone": "right.bone",
+  "right-aided": "right.aided",
   "left-air": "left.air",
   "left-bone": "left.bone",
+  "left-aided": "left.aided",
   "ff-unaided": "freeField.unaided",
   "ff-aided": "freeField.aided",
 };
@@ -262,6 +268,11 @@ export function gainBands(unaided: Curve, aided: Curve): GainBand[] {
     bands.push({ freq: Number(f), aided: ai.value, unaided: u.value });
   }
   return bands;
+}
+
+/** Zone de gain d'une oreille : seuils appareillés de l'oreille contre la même référence que le calcul du gain. */
+export function earGainBands(a: Audiometry, ear: "right" | "left"): GainBand[] {
+  return gainBands(gainReference(a, ear).curve, a[ear].aided);
 }
 
 /** Format français d'un nombre de dB (une décimale au plus). */

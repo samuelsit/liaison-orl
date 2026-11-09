@@ -20,6 +20,11 @@ export const measureSchema = z.object({
   confidence: confidenceSchema,
   /** Absence de réponse au niveau maximal de l'audiomètre. */
   noResponse: z.boolean().optional(),
+  /**
+   * Provenance : identifiant de la pièce jointe dont la valeur a été lue (posé par la
+   * fusion de plusieurs bilans). Absent = valeur saisie ou choisie à la main, jamais écrasée.
+   */
+  source: z.string().max(64).optional(),
 });
 export type Measure = z.infer<typeof measureSchema>;
 
@@ -39,6 +44,8 @@ export type Speech = z.infer<typeof speechSchema>;
 export const earSchema = z.object({
   air: curveSchema.default({}),
   bone: curveSchema.default({}),
+  /** Seuils en champ libre avec appareil, cette oreille seule (gain prothétique par oreille). */
+  aided: curveSchema.default({}),
   speech: speechSchema.default({ srt: null, maxScore: null, maxScoreLevel: null }),
 });
 export type EarAudiometry = z.infer<typeof earSchema>;
@@ -76,8 +83,8 @@ export function emptyAudiometry(): Audiometry {
   const speech = { srt: null, maxScore: null, maxScoreLevel: null };
   return {
     version: 1,
-    right: { air: {}, bone: {}, speech: { ...speech } },
-    left: { air: {}, bone: {}, speech: { ...speech } },
+    right: { air: {}, bone: {}, aided: {}, speech: { ...speech } },
+    left: { air: {}, bone: {}, aided: {}, speech: { ...speech } },
     freeField: { unaided: {}, aided: {}, speechUnaided: { ...speech }, speechAided: { ...speech } },
     noise: null,
     notes: null,

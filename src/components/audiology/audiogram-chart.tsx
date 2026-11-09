@@ -251,6 +251,7 @@ export function AudiogramLegend({ kind }: { kind: "right" | "left" | "freeField"
         : [
             { marker: kind === "right" ? "O" : "X", color: kind === "right" ? "var(--ear-right)" : "var(--ear-left)", label: C.air },
             { marker: kind === "right" ? "<" : ">", color: kind === "right" ? "var(--ear-right)" : "var(--ear-left)", dashed: true, label: C.bone },
+            { marker: "A", color: kind === "right" ? "var(--ear-right)" : "var(--ear-left)", label: C.earAided },
           ];
   return (
     <ul aria-label={C.legend} className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">

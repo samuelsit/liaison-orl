@@ -49,9 +49,11 @@ function points(curve: Curve): ChartPoint[] {
 export function earSeries(a: Audiometry, ear: "right" | "left"): ChartSeries[] {
   const e = a[ear];
   const color = EAR_COLORS[ear];
+  const side = ear === "right" ? "OD" : "OG";
   return [
-    { key: `${ear}-air`, label: ear === "right" ? "OD — conduction aérienne" : "OG — conduction aérienne", color, marker: ear === "right" ? "O" : "X", dashed: false, points: points(e.air) },
-    { key: `${ear}-bone`, label: ear === "right" ? "OD — conduction osseuse" : "OG — conduction osseuse", color, marker: ear === "right" ? "<" : ">", dashed: true, points: points(e.bone) },
+    { key: `${ear}-air`, label: `${side} — conduction aérienne`, color, marker: ear === "right" ? "O" : "X", dashed: false, points: points(e.air) },
+    { key: `${ear}-bone`, label: `${side} — conduction osseuse`, color, marker: ear === "right" ? "<" : ">", dashed: true, points: points(e.bone) },
+    { key: `${ear}-aided`, label: `${side} — champ libre avec appareil`, color, marker: "A", dashed: false, points: points(e.aided) },
   ];
 }
 

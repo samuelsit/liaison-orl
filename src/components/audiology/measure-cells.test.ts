@@ -3,6 +3,7 @@ import { emptyAudiometry, type Audiometry } from "@/lib/schemas/audiometry";
 import {
   applyRowPaste,
   cellText,
+  earGainBands,
   formatSigned,
   freqLong,
   gainBands,
@@ -149,6 +150,21 @@ describe("audiogramme", () => {
     expect(seriesKeyToPath("left-bone")).toBe("left.bone");
     expect(seriesKeyToPath("inconnu")).toBeNull();
     expect(pathToSeriesKey("freeField.aided")).toBe("ff-aided");
+    expect(pathToSeriesKey("right.aided")).toBe("right-aided");
+    expect(seriesKeyToPath("left-aided")).toBe("left.aided");
+  });
+
+  it("ombre le gain d'une oreille contre la même référence que le calcul", () => {
+    const a = emptyAudiometry();
+    a.right.air = { "500": { value: 40, confidence: "high" }, "1000": { value: 50, confidence: "high" } };
+    a.right.aided = { "500": { value: 25, confidence: "high" }, "1000": { value: 30, confidence: "high" } };
+    expect(earGainBands(a, "right")).toEqual([
+      { freq: 500, aided: 25, unaided: 40 },
+      { freq: 1000, aided: 30, unaided: 50 },
+    ]);
+    a.freeField.unaided = { "500": { value: 45, confidence: "high" } };
+    expect(earGainBands(a, "right")).toEqual([{ freq: 500, aided: 25, unaided: 45 }]);
+    expect(earGainBands(a, "left")).toEqual([]);
   });
 
   it("ne garde que les fréquences mesurées sans et avec appareils", () => {

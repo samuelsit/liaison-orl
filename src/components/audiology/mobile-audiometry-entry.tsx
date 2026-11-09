@@ -13,6 +13,7 @@ import { AudiogramChart } from "./audiogram-chart";
 import { MarkerGlyph, NoiseTestFields, type ConfidenceIds } from "./audiometry-tables";
 import {
   cellText,
+  earGainBands,
   freqLong,
   gainBands,
   getMeasure,
@@ -140,10 +141,15 @@ export function MobileAudiometryEntry({
             size="sm"
             title={segment === "freeField" ? crFr.chart.titles.freeField : crFr.chart.titles[segment]}
             series={segment === "freeField" ? freeFieldSeries(value) : earSeries(value, segment)}
-            gain={segment === "freeField" ? gainBands(value.freeField.unaided, value.freeField.aided) : undefined}
+            gain={segment === "freeField" ? gainBands(value.freeField.unaided, value.freeField.aided) : earGainBands(value, segment)}
             className="[--chart-surface:var(--popover)]"
           />
-          <div role="group" aria-label={G.earNames[segment]} className="grid grid-cols-[4rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-x-2 gap-y-2">
+          <div
+            role="group"
+            aria-label={G.earNames[segment]}
+            className="grid items-center gap-x-2 gap-y-2"
+            style={{ gridTemplateColumns: `4rem repeat(${rows.length}, minmax(0, 1fr))` }}
+          >
             <span className="text-xs font-medium text-muted-foreground">{G.freq}</span>
             {rows.map((r, i) => (
               <span key={r.path} className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground">

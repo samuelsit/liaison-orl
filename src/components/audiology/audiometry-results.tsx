@@ -103,7 +103,7 @@ export function AudiometryResults({ value, variant = "full", className }: { valu
       { label: <><EarSymbol ear="right" /> {R.right}</>, value: s.right.value === null ? "—" : db(s.right.value), detail: s.right.class ? R.classShort[s.right.class.key] : undefined },
       { label: <><EarSymbol ear="left" /> {R.left}</>, value: s.left.value === null ? "—" : db(s.left.value), detail: s.left.class ? R.classShort[s.left.class.key] : undefined },
       { label: R.global, value: s.global === null ? "—" : db(s.global), detail: s.globalClass ? R.classShort[s.globalClass.key] : undefined },
-      { label: R.meanGain, value: g.mean === null ? "—" : db(g.mean) },
+      { label: R.meanGain, value: g.mean === null ? "—" : db(g.mean), detail: g.meanSource === "per_ear" ? R.meanGainPerEar : g.meanSource === "free_field" ? R.meanGainBinaural : undefined },
       { label: R.scoreGain, value: g.speech.scoreGain === null ? "—" : R.points(formatSigned(g.speech.scoreGain)) },
       { label: R.srtGain, value: g.speech.srtGain === null ? "—" : db(g.speech.srtGain) },
     ];
@@ -144,8 +144,26 @@ export function AudiometryResults({ value, variant = "full", className }: { valu
           <StatTile
             label={R.meanGain}
             value={g.mean === null ? "—" : db(g.mean)}
-            detail={g.mean === null ? R.notMeasured : `${g.meanFrequencies.map(freqLabel).join(", ")} Hz`}
+            detail={
+              g.mean === null
+                ? R.notMeasured
+                : `${g.meanSource === "per_ear" ? `${R.meanGainPerEar} · ` : ""}${g.meanFrequencies.map(freqLabel).join(", ")} Hz`
+            }
           />
+          {g.perEar.right ? (
+            <StatTile
+              label={<span className="inline-flex items-center gap-1.5"><EarSymbol ear="right" /> {R.gainRight}</span>}
+              value={g.perEar.right.mean === null ? "—" : db(g.perEar.right.mean)}
+              detail={g.perEar.right.mean === null ? R.notComputable : `${g.perEar.right.meanFrequencies.map(freqLabel).join(", ")} Hz`}
+            />
+          ) : null}
+          {g.perEar.left ? (
+            <StatTile
+              label={<span className="inline-flex items-center gap-1.5"><EarSymbol ear="left" /> {R.gainLeft}</span>}
+              value={g.perEar.left.mean === null ? "—" : db(g.perEar.left.mean)}
+              detail={g.perEar.left.mean === null ? R.notComputable : `${g.perEar.left.meanFrequencies.map(freqLabel).join(", ")} Hz`}
+            />
+          ) : null}
           <StatTile
             label={R.srtGain}
             value={g.speech.srtGain === null ? "—" : db(g.speech.srtGain)}
@@ -161,6 +179,12 @@ export function AudiometryResults({ value, variant = "full", className }: { valu
             <StatTile label={R.noiseScoreGain} value={R.points(formatSigned(g.noise.scoreGain))} detail={value.noise?.testName ?? undefined} />
           ) : null}
         </StatTiles>
+        {g.rule ? (
+          <p className="mt-3 text-meta text-muted-foreground">
+            <span className="font-medium">{R.gainRule} : </span>
+            {g.rule}
+          </p>
+        ) : null}
       </Group>
     </section>
   );

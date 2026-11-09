@@ -14,6 +14,7 @@ import { AudiometryResults } from "./audiometry-results";
 import { NoiseTestFields, SpeechGrid, ThresholdGrid } from "./audiometry-tables";
 import { earTokens } from "./ear-tokens";
 import {
+  earGainBands,
   gainBands,
   hasIntermediateValues,
   INTERMEDIATE_FREQS,
@@ -140,8 +141,22 @@ export function AudiometryEditor({
     <div ref={root} className={cn(earTokens, "space-y-8", className)}>
       {confidenceTexts}
       <div className="grid gap-x-6 gap-y-6 sm:grid-cols-2">
-        <AudiogramChart title={crFr.chart.titles.right} series={earSeries(value, "right")} highlight={highlight} onPointClick={onPointClick} className="[--chart-surface:var(--popover)]" />
-        <AudiogramChart title={crFr.chart.titles.left} series={earSeries(value, "left")} highlight={highlight} onPointClick={onPointClick} className="[--chart-surface:var(--popover)]" />
+        <AudiogramChart
+          title={crFr.chart.titles.right}
+          series={earSeries(value, "right")}
+          gain={earGainBands(value, "right")}
+          highlight={highlight}
+          onPointClick={onPointClick}
+          className="[--chart-surface:var(--popover)]"
+        />
+        <AudiogramChart
+          title={crFr.chart.titles.left}
+          series={earSeries(value, "left")}
+          gain={earGainBands(value, "left")}
+          highlight={highlight}
+          onPointClick={onPointClick}
+          className="[--chart-surface:var(--popover)]"
+        />
         <AudiogramChart
           size="wide"
           title={crFr.chart.titles.freeField}

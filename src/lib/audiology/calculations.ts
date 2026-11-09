@@ -118,11 +118,31 @@ export function suggestDegree(a: Audiometry): DegreeSuggestion {
   return { right, left, global, globalClass, degree: globalClass?.degree ?? null, ears, rule };
 }
 
-export interface GainResult {
-  perFrequency: { freq: FreqKey; unaided: number; aided: number; gain: number }[];
+export type GainPoint = { freq: FreqKey; unaided: number; aided: number; gain: number };
+
+/** Référence du gain d'une oreille : champ libre sans appareil, ou à défaut sa conduction aérienne au casque. */
+export type GainReference = "free_field" | "air";
+
+export interface EarGain {
+  perFrequency: GainPoint[];
   /** Gain tonal moyen sur 500/1000/2000/4000 Hz (fréquences disponibles). */
   mean: number | null;
   meanFrequencies: FreqKey[];
+  reference: GainReference;
+}
+
+export interface GainResult {
+  /** Gain binaural : champ libre sans appareil − champ libre avec appareils. */
+  perFrequency: GainPoint[];
+  /** Gain tonal moyen sur 500/1000/2000/4000 Hz ; binaural si mesuré, sinon moyenne des gains par oreille. */
+  mean: number | null;
+  meanFrequencies: FreqKey[];
+  /** Origine du gain moyen : champ libre binaural, par oreille, ou aucune. */
+  meanSource: "free_field" | "per_ear" | null;
+  /** Gain par oreille (seuils appareillés de l'oreille seule). */
+  perEar: { right: EarGain | null; left: EarGain | null };
+  /** Règle de calcul appliquée, à afficher (comme la règle BIAP). */
+  rule: string | null;
   speech: {
     srtUnaided: number | null;
     srtAided: number | null;
@@ -137,16 +157,61 @@ export interface GainResult {
 const val = (m: Measure | null | undefined) => (m && m.value !== null && !m.noResponse ? m.value : null);
 const diff = (a: number | null, b: number | null) => (a === null || b === null ? null : round1(a - b));
 
-/** Gain prothétique : seuils en champ libre sans appareil − avec appareils ; gains en intelligibilité. */
-export function prostheticGain(a: Audiometry): GainResult {
-  const perFrequency: GainResult["perFrequency"] = [];
+function gainPoints(reference: Curve, aided: Curve): GainPoint[] {
+  const out: GainPoint[] = [];
   for (const f of FREQ_KEYS) {
-    const u = val(a.freeField.unaided[f]);
-    const ai = val(a.freeField.aided[f]);
-    if (u !== null && ai !== null) perFrequency.push({ freq: f, unaided: u, aided: ai, gain: round1(u - ai) });
+    const u = val(reference[f]);
+    const ai = val(aided[f]);
+    if (u !== null && ai !== null) out.push({ freq: f, unaided: u, aided: ai, gain: round1(u - ai) });
   }
-  const forMean = perFrequency.filter((p) => BIAP_FREQS.includes(p.freq));
-  const mean = forMean.length ? round1(forMean.reduce((s, p) => s + p.gain, 0) / forMean.length) : null;
+  return out;
+}
+
+function meanOf(points: GainPoint[]): { mean: number | null; freqs: FreqKey[] } {
+  const forMean = points.filter((p) => BIAP_FREQS.includes(p.freq));
+  return { mean: forMean.length ? round1(forMean.reduce((s, p) => s + p.gain, 0) / forMean.length) : null, freqs: forMean.map((p) => p.freq) };
+}
+
+/**
+ * Courbe de référence du gain d'une oreille : le champ libre sans appareil s'il porte au
+ * moins une valeur exploitable, sinon la conduction aérienne de l'oreille au casque.
+ */
+export function gainReference(a: Audiometry, ear: "right" | "left"): { curve: Curve; reference: GainReference } {
+  const hasFreeField = FREQ_KEYS.some((f) => val(a.freeField.unaided[f]) !== null);
+  return hasFreeField ? { curve: a.freeField.unaided, reference: "free_field" } : { curve: a[ear].air, reference: "air" };
+}
+
+function earGain(a: Audiometry, ear: "right" | "left"): EarGain | null {
+  const aided = a[ear].aided;
+  if (!FREQ_KEYS.some((f) => val(aided[f]) !== null)) return null;
+  const ref = gainReference(a, ear);
+  const perFrequency = gainPoints(ref.curve, aided);
+  const m = meanOf(perFrequency);
+  return { perFrequency, mean: m.mean, meanFrequencies: m.freqs, reference: ref.reference };
+}
+
+export const GAIN_RULE_FREE_FIELD = "Gain prothétique binaural : seuils en champ libre sans appareil − avec appareils, moyenne à 500, 1000, 2000 et 4000 Hz.";
+export const GAIN_RULE_PER_EAR_FREE_FIELD = "Gain prothétique par oreille : champ libre sans appareil − seuils appareillés de l'oreille, moyenne à 500, 1000, 2000 et 4000 Hz.";
+export const GAIN_RULE_PER_EAR_AIR =
+  "Gain prothétique par oreille : le champ libre sans appareil n'a pas été mesuré, la référence est la conduction aérienne de l'oreille au casque ; moyenne à 500, 1000, 2000 et 4000 Hz.";
+
+/** Gain prothétique : binaural (champ libre sans − avec) et par oreille ; gains en intelligibilité. */
+export function prostheticGain(a: Audiometry): GainResult {
+  const perFrequency = gainPoints(a.freeField.unaided, a.freeField.aided);
+  const binaural = meanOf(perFrequency);
+  const perEar = { right: earGain(a, "right"), left: earGain(a, "left") };
+  const earMeans = [perEar.right?.mean, perEar.left?.mean].filter((v): v is number => v !== null && v !== undefined);
+  let mean = binaural.mean;
+  let meanFrequencies = binaural.freqs;
+  let meanSource: GainResult["meanSource"] = binaural.mean !== null ? "free_field" : null;
+  if (mean === null && earMeans.length) {
+    mean = round1(earMeans.reduce((s, v) => s + v, 0) / earMeans.length);
+    meanFrequencies = [...new Set([...(perEar.right?.meanFrequencies ?? []), ...(perEar.left?.meanFrequencies ?? [])])].sort((x, y) => Number(x) - Number(y));
+    meanSource = "per_ear";
+  }
+  const references = [perEar.right?.reference, perEar.left?.reference].filter((r): r is GainReference => Boolean(r));
+  const rule =
+    meanSource === "free_field" ? GAIN_RULE_FREE_FIELD : meanSource === "per_ear" ? (references.includes("air") ? GAIN_RULE_PER_EAR_AIR : GAIN_RULE_PER_EAR_FREE_FIELD) : null;
   const su: Speech = a.freeField.speechUnaided;
   const sa: Speech = a.freeField.speechAided;
   const speech = {
@@ -161,15 +226,25 @@ export function prostheticGain(a: Audiometry): GainResult {
   const noise = n
     ? { snrGain: diff(val(n.unaidedSnr), val(n.aidedSnr)), scoreGain: diff(val(n.aidedScore), val(n.unaidedScore)) }
     : null;
-  return { perFrequency, mean, meanFrequencies: forMean.map((p) => p.freq), speech, noise };
+  return { perFrequency, mean, meanFrequencies, meanSource, perEar, rule, speech, noise };
 }
 
 function round1(v: number) {
   return Math.round(v * 10) / 10;
 }
 
-/** Nombre de mesures renseignées (pour savoir si une extraction est exploitable). */
+const present = (m: Measure | null | undefined) => Boolean(m && (m.value !== null || m.noResponse));
+
+/** Nombre de seuils tonals renseignés (toutes courbes, y compris appareillées par oreille). */
 export function countMeasures(a: Audiometry): number {
-  const curves = [a.right.air, a.right.bone, a.left.air, a.left.bone, a.freeField.unaided, a.freeField.aided];
-  return curves.reduce((n, c) => n + Object.values(c).filter((m) => m && (m.value !== null || m.noResponse)).length, 0);
+  const curves = [a.right.air, a.right.bone, a.right.aided, a.left.air, a.left.bone, a.left.aided, a.freeField.unaided, a.freeField.aided];
+  return curves.reduce((n, c) => n + Object.values(c).filter(present).length, 0);
+}
+
+/** Nombre total de mesures renseignées : tonale, vocale et bruit (un bilan vocal seul est exploitable). */
+export function countAllMeasures(a: Audiometry): number {
+  const speech = [a.right.speech, a.left.speech, a.freeField.speechUnaided, a.freeField.speechAided];
+  const speechCount = speech.reduce((n, s) => n + [s.srt, s.maxScore, s.maxScoreLevel].filter(present).length, 0);
+  const noiseCount = a.noise ? [a.noise.unaidedSnr, a.noise.aidedSnr, a.noise.unaidedScore, a.noise.aidedScore].filter(present).length : 0;
+  return countMeasures(a) + speechCount + noiseCount;
 }
