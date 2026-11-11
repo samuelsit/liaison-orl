@@ -40,6 +40,7 @@ export function PrescriberDirectory({
   filter,
   specialty,
   activeCentreName,
+  hideCentreFilter = false,
   centres,
   salutations,
   canImport,
@@ -55,6 +56,8 @@ export function PrescriberDirectory({
   filter: PrescriberFilter;
   specialty: string | null;
   activeCentreName: string;
+  /** Vue « Tous les centres » : pas de segment « Centre actif ». */
+  hideCentreFilter?: boolean;
   centres: { id: string; name: string }[];
   salutations: string[];
   canImport: boolean;
@@ -251,9 +254,11 @@ export function PrescriberDirectory({
           >
             <SegmentedControlItem value="all">{T.filters.all}</SegmentedControlItem>
             <SegmentedControlItem value="favorites">{T.filters.favorites}</SegmentedControlItem>
-            <SegmentedControlItem value="centre" title={activeCentreName}>
-              {T.filters.centre}
-            </SegmentedControlItem>
+            {hideCentreFilter ? null : (
+              <SegmentedControlItem value="centre" title={activeCentreName}>
+                {T.filters.centre}
+              </SegmentedControlItem>
+            )}
           </SegmentedControl>
         }
         filters={

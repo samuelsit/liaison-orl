@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
+import { ALL_CENTRES } from "@/lib/auth/scope";
 import {
   Activity,
   Archive,
@@ -21,6 +22,7 @@ import {
   Inbox,
   Keyboard,
   LayoutDashboard,
+  LayoutGrid,
   Mail,
   Moon,
   Palette,
@@ -153,7 +155,7 @@ export function CommandPaletteProvider({
   const [creatingValue, setCreatingValue] = useState<string | null>(null);
   const [lastPath, setLastPath] = useState(pathname);
   const latestQuery = useRef("");
-  const { create, pending } = useCreateDocument();
+  const { create, needsCentre, pending } = useCreateDocument();
 
   // Une navigation (création aboutie, lien suivi) referme la palette.
   if (lastPath !== pathname) {
@@ -255,6 +257,14 @@ export function CommandPaletteProvider({
 
   function startCreate(value: string, type: DocumentType, opts: { patientId?: string; prescriberId?: string } = {}) {
     if (pending) return;
+    if (needsCentre(opts)) {
+      // Vue « Tous les centres » : la palette laisse place à la fenêtre de choix du centre.
+      setOpen(false);
+      setPage("root");
+      setQuery("");
+      create(type, opts);
+      return;
+    }
     setCreatingValue(value);
     create(type, opts);
   }
@@ -262,12 +272,13 @@ export function CommandPaletteProvider({
   function changeCentre(id: string) {
     const name = centres.find((c) => c.id === id)?.name ?? "";
     setOpen(false);
+    if (id === activeCentreId) return;
     setPage("root");
     setQuery("");
     void setActiveCentreAction(id).then((res) => {
       if (!res.ok) toast.error(res.error);
       else {
-        toast.success(shellFr.sidebar.centreChanged(name));
+        toast.success(id === ALL_CENTRES ? shellFr.sidebar.allCentresChanged : shellFr.sidebar.centreChanged(name));
         router.refresh();
       }
     });
@@ -376,6 +387,13 @@ export function CommandPaletteProvider({
                 <CommandItem value="back" onSelect={() => setPage("root")} className="text-muted-foreground">
                   <ArrowLeft aria-hidden /> {T.back}
                 </CommandItem>
+                {isAdmin && centres.length > 1 && matchesQuery(query, T.allCentres) ? (
+                  <CommandItem value="centre-tous" data-checked={activeCentreId === ALL_CENTRES} onSelect={() => changeCentre(ALL_CENTRES)}>
+                    <LayoutGrid aria-hidden />
+                    <span className="flex-1 truncate">{T.allCentres}</span>
+                    {activeCentreId === ALL_CENTRES ? <span className="sr-only">({T.currentCentre})</span> : null}
+                  </CommandItem>
+                ) : null}
                 {centres
                   .filter((c) => matchesQuery(query, c.name))
                   .map((c) => (

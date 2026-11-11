@@ -65,7 +65,8 @@ export async function listPrescribers(
 ): Promise<{ items: PrescriberView[]; total: number }> {
   const q: Filter<PrescriberDoc> = { organizationId: ctx.user.organizationId, archived: opts.filter === "archived" };
   if (opts.filter === "favorites") q.favoriteOf = ctx.user.id;
-  if (opts.filter === "centre") q.centreIds = ctx.activeCentre._id;
+  // Vue « Tous les centres » : le filtre « centre actif » n'a pas de sens, il revient à « Tous ».
+  if (opts.filter === "centre" && !ctx.allCentres) q.centreIds = ctx.activeCentre._id;
   if (opts.specialty) q.specialty = opts.specialty;
   const regex = opts.q ? prefixWordsRegex(opts.q) : null;
   if (regex) q.searchText = regex;
@@ -102,6 +103,8 @@ export async function suggestPrescribers(ctx: UserContext, query: string, limit 
   const recentSet = new Set(recent);
   const regex = query.trim() ? prefixWordsRegex(query) : null;
   const base: Filter<PrescriberDoc> = { organizationId: ctx.user.organizationId, archived: false };
+  // Vue « Tous les centres » : pas de centre de référence, favoris et récents seulement.
+  const centreId = ctx.allCentres ? null : ctx.activeCentre._id;
   let docs: PrescriberDoc[];
   if (regex) {
     docs = await collections()
@@ -112,14 +115,24 @@ export async function suggestPrescribers(ctx: UserContext, query: string, limit 
   } else {
     docs = await collections()
       .prescribers()
-      .find({ ...base, $or: [{ favoriteOf: ctx.user.id }, { _id: { $in: recent } }, { centreIds: ctx.activeCentre._id }] })
+      .find({ ...base, $or: [{ favoriteOf: ctx.user.id }, { _id: { $in: recent } }, ...(centreId ? [{ centreIds: centreId }] : [])] })
       .limit(60)
       .toArray();
+    if (!centreId && docs.length < limit) {
+      // Sans centre de référence, la liste se complète par ordre alphabétique (jamais vide d'emblée).
+      const more = await collections()
+        .prescribers()
+        .find({ ...base, _id: { $nin: docs.map((d) => d._id) } })
+        .sort({ lastName: 1, firstName: 1 })
+        .limit(limit - docs.length)
+        .toArray();
+      docs = [...docs, ...more];
+    }
   }
   const score = (p: PrescriberDoc) =>
     (p.favoriteOf.includes(ctx.user.id) ? 0 : 10) +
     (recentSet.has(p._id) ? 0 : 5) +
-    (p.centreIds.includes(ctx.activeCentre._id) ? 0 : 2);
+    (centreId && p.centreIds.includes(centreId) ? 0 : 2);
   return docs
     .sort((a, b) => score(a) - score(b) || a.lastName.localeCompare(b.lastName, "fr"))
     .slice(0, limit)
@@ -170,7 +183,8 @@ export async function createPrescriber(
     _id: randomUUID(),
     organizationId: ctx.user.organizationId,
     ...input,
-    centreIds: input.centreIds.length ? input.centreIds : [ctx.activeCentre._id],
+    // Sans centre choisi : centre actif, ou fiche commune en vue « Tous les centres ».
+    centreIds: input.centreIds.length ? input.centreIds : ctx.allCentres ? [] : [ctx.activeCentre._id],
     favoriteOf: [],
     archived: false,
     searchText: prescriberSearchText(input),

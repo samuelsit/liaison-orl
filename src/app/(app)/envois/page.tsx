@@ -37,13 +37,15 @@ export default async function DispatchesPage({ searchParams }: { searchParams: P
   const legacyChannel = sp.filtre === "email" || sp.filtre === "courrier" ? sp.filtre : null;
   const state: DispatchStateFilter = sp.filtre === "erreurs" || sp.filtre === "encours" ? sp.filtre : "tous";
   const channel: DispatchChannelFilter = sp.canal === "email" || sp.canal === "courrier" ? sp.canal : legacyChannel;
-  const allCentres = sp.centres === "tous" && ctx.centres.length > 1;
+  // Filtre « Tous mes centres » de la page ; en vue « Tous les centres » (admin), tous les centres d'office.
+  const allCentres = sp.centres === "tous" && ctx.centres.length > 1 && !ctx.allCentres;
+  const scopeIds = allCentres ? ctx.centres.map((c) => c._id) : ctx.scopeCentreIds;
   const q = (sp.q ?? "").slice(0, 80);
   const limit = pageSize(sp.n);
 
   const base: Filter<DispatchDoc> = {
     organizationId: ctx.user.organizationId,
-    centreId: { $in: allCentres ? ctx.centres.map((c) => c._id) : [ctx.activeCentre._id] },
+    centreId: { $in: scopeIds },
   };
   if (channel) base.channel = channel === "email" ? "EMAIL" : "COURRIER";
   const regex = q ? prefixWordsRegex(q) : null;
@@ -107,7 +109,7 @@ export default async function DispatchesPage({ searchParams }: { searchParams: P
         state={state}
         channel={channel}
         allCentres={allCentres}
-        multiCentre={ctx.centres.length > 1}
+        multiCentre={ctx.centres.length > 1 && !ctx.allCentres}
         counts={counts}
         shown={items.length}
         total={total}
@@ -116,7 +118,7 @@ export default async function DispatchesPage({ searchParams }: { searchParams: P
           <div className="rounded-xl border bg-card shadow-xs">{empty}</div>
         ) : (
           <ListRowContainer grouped>
-            <DispatchList items={items} grouped canSend={can(ctx.user, "document.send", ctx.organization.settings)} />
+            <DispatchList items={items} grouped showCentre={scopeIds.length > 1} canSend={can(ctx.user, "document.send", ctx.organization.settings)} />
           </ListRowContainer>
         )}
       </DispatchListShell>

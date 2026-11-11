@@ -24,14 +24,16 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
   // Un adressage n'est jamais envoyé : « Envoyés » / « Erreurs » ne s'appliquent pas à ce type.
   const status = statusesFor(type).includes(sp.statut as DocumentStatus) ? (sp.statut as DocumentStatus) : null;
   const mine = sp.auteur === "moi";
-  const allCentres = sp.centres === "tous" && ctx.centres.length > 1;
+  // Filtre « Tous mes centres » de la page ; en vue « Tous les centres » (admin), tous les centres d'office.
+  const allCentres = sp.centres === "tous" && ctx.centres.length > 1 && !ctx.allCentres;
+  const scopeIds = allCentres ? ctx.centres.map((c) => c._id) : ctx.scopeCentreIds;
   const q = (sp.q ?? "").slice(0, 80);
   const limit = pageSize(sp.n);
 
   // Filtre de base (hors statut) : sert aux compteurs du contrôle segmenté.
   const base: Filter<DocumentDoc> = {
     organizationId: ctx.user.organizationId,
-    centreId: { $in: allCentres ? ctx.centres.map((c) => c._id) : [ctx.activeCentre._id] },
+    centreId: { $in: scopeIds },
   };
   if (type) base.type = type;
   if (mine) base.authorId = ctx.user.id;
@@ -72,7 +74,8 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
         filters={{ status, type, mine, allCentres, q }}
         counts={counts}
         total={status ? counts[status] : counts.all}
-        multiCentre={ctx.centres.length > 1}
+        multiCentre={ctx.centres.length > 1 && !ctx.allCentres}
+        showCentre={scopeIds.length > 1}
       />
     </PageContainer>
   );

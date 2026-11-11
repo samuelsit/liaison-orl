@@ -17,6 +17,7 @@ export async function DispatchList({
   emptyState,
   canSend,
   grouped = false,
+  showCentre = false,
 }: {
   items: DispatchListItem[];
   empty?: string;
@@ -25,6 +26,8 @@ export async function DispatchList({
   canSend?: boolean;
   /** Sous-titres par période (« Aujourd'hui », « Cette semaine », « Plus ancien »). */
   grouped?: boolean;
+  /** Plusieurs centres listés : nom du centre dans le sous-titre. */
+  showCentre?: boolean;
 }) {
   if (items.length === 0) return emptyState ?? (empty ? <EmptyState title={empty} /> : null);
   let allowed = canSend;
@@ -32,5 +35,5 @@ export async function DispatchList({
     const ctx = await getUserContext();
     allowed = can(ctx.user, "document.send", ctx.organization.settings);
   }
-  return <DispatchRows items={items} canSend={allowed} grouped={grouped} />;
+  return <DispatchRows items={items} canSend={allowed} grouped={grouped} showCentre={showCentre} />;
 }

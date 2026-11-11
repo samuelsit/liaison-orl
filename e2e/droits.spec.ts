@@ -24,6 +24,18 @@ test.describe("Droits", () => {
     }
   });
 
+  test("la vue « Tous les centres » est réservée aux administrateurs", async ({ page }) => {
+    await login(page, ACCOUNTS.audio);
+    const select = page.getByTestId("centre-select");
+    await expect(select).toBeVisible();
+    if ((await select.evaluate((el) => el.tagName)) === "BUTTON") {
+      await select.click();
+      await expect(page.getByRole("option").first()).toBeVisible();
+      await expect(page.getByRole("option", { name: /Tous les centres/ })).toHaveCount(0);
+    }
+    await expect(page.getByTestId("centre-overview")).toHaveCount(0);
+  });
+
   test("les API refusent les requêtes non authentifiées", async ({ request }) => {
     for (const url of ["/api/documents/inexistant/pdf", "/api/pieces-jointes/inexistant", "/api/admin/audit", "/api/admin/statistiques"]) {
       const res = await request.get(url, { maxRedirects: 0 });

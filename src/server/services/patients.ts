@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { Filter } from "mongodb";
 import { collections } from "@/lib/db/collections";
 import type { PatientDoc } from "@/lib/db/types";
-import { assertCan, assertCentre } from "@/lib/auth/permissions";
+import { assertCan, assertCentre, ForbiddenError } from "@/lib/auth/permissions";
 import type { UserContext } from "@/lib/auth/session";
 import { patientInputSchema } from "@/lib/schemas/patient";
 import { patientSearchText } from "@/lib/search-text";
@@ -41,7 +41,7 @@ export async function listPatients(
   ctx: UserContext,
   opts: { q?: string; scope?: "active" | "all"; limit?: number; offset?: number },
 ): Promise<{ items: PatientView[]; total: number }> {
-  const centreIds = opts.scope === "all" ? ctx.centres.map((c) => c._id) : [ctx.activeCentre._id];
+  const centreIds = opts.scope === "all" || ctx.allCentres ? ctx.centres.map((c) => c._id) : [ctx.activeCentre._id];
   const q: Filter<PatientDoc> = { organizationId: ctx.user.organizationId, centreId: { $in: centreIds } };
   const regex = opts.q ? prefixWordsRegex(opts.q) : null;
   if (regex) q.searchText = regex;
@@ -84,8 +84,13 @@ async function checkedPrescriberId(organizationId: string, id: string | null): P
 
 export async function createPatient(ctx: UserContext, raw: unknown, opts: { force?: boolean } = {}): Promise<{ created: PatientView | null; similar: PatientView[] }> {
   assertCan(ctx.user, "patient.edit", ctx.organization.settings);
-  const input = patientInputSchema.parse({ centreId: ctx.activeCentre._id, ...(raw as object) });
+  // Vue « Tous les centres » : pas de centre implicite, il est choisi dans le formulaire.
+  const fallback = ctx.allCentres ? {} : { centreId: ctx.activeCentre._id };
+  const merged = { ...fallback, ...(raw as object) } as { centreId?: unknown };
+  if (!merged.centreId) throw new UserFacingError("Choisissez le centre du patient.");
+  const input = patientInputSchema.parse(merged);
   assertCentre(ctx.user, input.centreId);
+  if (!ctx.centres.some((c) => c._id === input.centreId)) throw new ForbiddenError("Ce centre ne fait pas partie de vos centres.");
   input.usualPrescriberId = await checkedPrescriberId(ctx.user.organizationId, input.usualPrescriberId);
   if (!opts.force) {
     const similar = await findSimilarPatients(ctx.user.organizationId, input.centreId, input);

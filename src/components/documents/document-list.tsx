@@ -23,6 +23,7 @@ export async function DocumentList({
   showAuthor,
   hideStatus,
   viewer,
+  showCentre,
 }: {
   items: DocumentListItem[];
   empty?: string;
@@ -32,7 +33,9 @@ export async function DocumentList({
   /** Masque le statut quand la liste est déjà filtrée par statut (« À finir »). */
   hideStatus?: boolean;
   viewer?: DocumentViewer;
+  /** Plusieurs centres listés : nom du centre dans le sous-titre. */
+  showCentre?: boolean;
 }) {
   if (items.length === 0) return emptyState ?? (empty ? <EmptyState title={empty} /> : null);
-  return <DocumentRows items={items} viewer={viewer ?? (await currentDocumentViewer())} showAuthor={showAuthor} hideStatus={hideStatus} />;
+  return <DocumentRows items={items} viewer={viewer ?? (await currentDocumentViewer())} showAuthor={showAuthor} hideStatus={hideStatus} showCentre={showCentre} />;
 }

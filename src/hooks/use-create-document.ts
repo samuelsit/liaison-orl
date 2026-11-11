@@ -6,6 +6,19 @@ import { toast } from "sonner";
 import { createDocumentAction } from "@/server/actions/documents";
 import type { DocumentType } from "@/lib/schemas/document";
 import { shellFr } from "@/lib/i18n/shell";
+import { centreRequests, useCentreScope } from "@/components/layout/centre-scope";
+
+export interface CreateOptions {
+  patientId?: string | null;
+  prescriberId?: string | null;
+  /** Centre du document ; demandé à l'utilisateur en vue « Tous les centres » sans patient. */
+  centreId?: string | null;
+}
+
+/** Vue « Tous les centres » : sans patient (dont le centre fait foi) ni centre explicite, il faut demander. */
+export function needsCentreChoice(allCentres: boolean, opts: CreateOptions): boolean {
+  return allCentres && !opts.patientId && !opts.centreId;
+}
 
 /*
  * Garde globale de création : un seul brouillon à la fois, quel que soit le déclencheur
@@ -74,13 +87,19 @@ export function useCreateDocument() {
   const router = useRouter();
   const pathname = usePathname();
   const state = useSyncExternalStore(guard.subscribe, guard.get, getServerSnapshot);
+  const { allCentres } = useCentreScope();
 
   useEffect(() => {
     guard.releaseIfLeft(pathname);
   }, [pathname]);
 
   const create = useCallback(
-    (type: DocumentType, opts: { patientId?: string | null; prescriberId?: string | null } = {}) => {
+    function run(type: DocumentType, opts: CreateOptions = {}) {
+      if (needsCentreChoice(allCentres, opts)) {
+        // La garde n'est prise qu'après le choix : fermer la fenêtre n'a rien à libérer.
+        if (!guard.get().type) centreRequests.open({ type, onPick: (centreId) => run(type, { ...opts, centreId }) });
+        return;
+      }
       if (!guard.acquire(type, pathname)) return;
       setTimeout(() => guard.releaseStale(), SAFETY_MS + 50);
       void (async () => {
@@ -98,8 +117,10 @@ export function useCreateDocument() {
         }
       })();
     },
-    [pathname, router],
+    [allCentres, pathname, router],
   );
 
-  return { create, pending: state.type !== null, pendingType: state.type };
+  const needsCentre = useCallback((opts: CreateOptions = {}) => needsCentreChoice(allCentres, opts), [allCentres]);
+
+  return { create, needsCentre, pending: state.type !== null, pendingType: state.type };
 }

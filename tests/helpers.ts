@@ -5,6 +5,7 @@ import { closeDb, db } from "@/lib/db/client";
 import { collections } from "@/lib/db/collections";
 import { ensureIndexes } from "@/lib/db/indexes";
 import type { UserContext, SessionUser } from "@/lib/auth/session";
+import { withScope } from "@/lib/auth/scope";
 import type { CentreDoc, OrganizationDoc } from "@/lib/db/types";
 import { DEFAULT_COLORS, DEFAULT_FONTS, defaultSettings } from "@/lib/brand";
 import type { Role } from "@/lib/schemas/common";
@@ -59,7 +60,7 @@ export async function createTestOrg(opts: { centres?: number } = {}) {
 export async function createTestContext(
   org: OrganizationDoc,
   centres: CentreDoc[],
-  opts: { role?: Role; centreIds?: string[]; canSend?: boolean } = {},
+  opts: { role?: Role; centreIds?: string[]; canSend?: boolean; allCentres?: boolean } = {},
 ): Promise<UserContext> {
   const id = randomUUID();
   const role = opts.role ?? "audioprothesiste";
@@ -99,5 +100,5 @@ export async function createTestContext(
     hasSignature: false,
   };
   const accessible = role === "admin" ? centres : centres.filter((c) => centreIds.includes(c._id));
-  return { user, organization: org, centres: accessible, activeCentre: accessible[0]! };
+  return withScope({ user, organization: org, centres: accessible, activeCentre: accessible[0]! }, opts.allCentres ?? false);
 }

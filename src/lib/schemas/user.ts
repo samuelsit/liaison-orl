@@ -9,6 +9,8 @@ export const userPreferencesSchema = z.object({
   activeCentreId: idSchema.nullable().default(null),
   learned: learnedDefaultsSchema.default({}),
   favoritesFirst: z.boolean().default(true),
+  /** Administrateurs : vue « Tous les centres » (activeCentreId reste le dernier centre réel choisi). */
+  viewAllCentres: z.boolean().optional(),
 });
 export type UserPreferences = z.infer<typeof userPreferencesSchema>;
 

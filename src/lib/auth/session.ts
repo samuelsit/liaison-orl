@@ -10,6 +10,9 @@ import { getOrganization, listCentres } from "@/server/repositories/organization
 import type { CentreDoc, OrganizationDoc } from "@/lib/db/types";
 import { ForbiddenError } from "./permissions";
 import { loginHref, REQUEST_PATH_HEADER } from "@/lib/navigation";
+import { ALL_CENTRES, withScope } from "./scope";
+
+export { ALL_CENTRES };
 
 export const ACTIVE_CENTRE_COOKIE = "lorl_centre";
 
@@ -88,7 +91,12 @@ export interface UserContext {
   user: SessionUser;
   organization: OrganizationDoc;
   centres: CentreDoc[];
+  /** Toujours un centre réel : en vue « Tous les centres », le dernier centre choisi. */
   activeCentre: CentreDoc;
+  /** Vue « Tous les centres » (administrateurs). */
+  allCentres: boolean;
+  /** Centres couverts par les lectures : tous en vue « Tous les centres », sinon le centre actif. */
+  scopeCentreIds: string[];
 }
 
 /** Centres accessibles par l'utilisateur (tous pour un administrateur). */
@@ -124,9 +132,12 @@ async function buildContext(user: SessionUser): Promise<UserContext> {
   if (centres.length === 0) throw new ForbiddenError("Aucun centre actif ne vous est rattaché. Contactez votre administrateur.");
   const cookieValue = (await cookies()).get(ACTIVE_CENTRE_COOKIE)?.value;
   let activeCentre = centres.find((c) => c._id === cookieValue);
+  let wantsAll = cookieValue === ALL_CENTRES;
   if (!activeCentre) {
     const prefs = await collections().users().findOne({ _id: user.id }, { projection: { preferences: 1 } });
     activeCentre = centres.find((c) => c._id === prefs?.preferences?.activeCentreId) ?? centres[0]!;
+    if (cookieValue === undefined) wantsAll = Boolean(prefs?.preferences?.viewAllCentres);
   }
-  return { user, organization, centres, activeCentre };
+  return withScope({ user, organization, centres, activeCentre }, wantsAll);
 }
+

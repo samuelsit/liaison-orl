@@ -52,7 +52,8 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       initialPrescriber={prescriber ? toPrescriberView(prescriber, ctx.user.id) : null}
       shared={{
         centres: ctx.centres.map((c) => ({ id: c._id, name: c.name })),
-        activeCentreId: ctx.activeCentre._id,
+        // Centre du document (et non le centre actif) : recherche de patients, création rapide.
+        activeCentreId: doc.centreId,
         salutations: settings.documents.salutations,
         defaultSalutation: settings.documents.defaultSalutation || fr.common.none,
         canEditDirectory: can(ctx.user, "prescriber.edit", settings),

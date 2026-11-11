@@ -29,7 +29,7 @@ const formSchema = z.object({
   lastName: z.string().trim().min(1, "Nom obligatoire").max(80),
   firstName: z.string().trim().min(1, "Prénom obligatoire").max(80),
   birthDate: z.union([isoDateSchema, z.literal("")]),
-  centreId: z.string().min(1),
+  centreId: z.string().min(1, "Choisissez le centre du patient"),
 });
 export type PatientFormValues = z.infer<typeof formSchema> & { usualPrescriberId: string | null };
 const L = dirFr.patients.fields;
@@ -139,14 +139,14 @@ export function PatientForm({
           />
         </FormField>
         {centres.length > 1 ? (
-          <FormField id="pt-centre" label={L.centre}>
+          <FormField id="pt-centre" label={L.centre} required error={e.centreId?.message}>
             <Controller
               control={control}
               name="centreId"
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id="pt-centre">
-                    <SelectValue />
+                  <SelectTrigger id="pt-centre" aria-invalid={Boolean(e.centreId) || undefined}>
+                    <SelectValue placeholder={T.pickCentre} />
                   </SelectTrigger>
                   <SelectContent>
                     {centres.map((c) => (

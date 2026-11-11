@@ -54,6 +54,7 @@ export function DocumentsTable({
   counts,
   total,
   multiCentre,
+  showCentre = false,
 }: {
   items: DocumentListItem[];
   viewer: DocumentViewer;
@@ -62,6 +63,8 @@ export function DocumentsTable({
   /** Nombre total de documents pour les filtres actuels (la liste peut être tronquée). */
   total: number;
   multiCentre: boolean;
+  /** Plusieurs centres listés : nom du centre sur chaque ligne. */
+  showCentre?: boolean;
 }) {
   const router = useRouter();
   const { update, pending: filtering } = useUrlFilters({ resetKeys: ["n"] });
@@ -208,7 +211,7 @@ export function DocumentsTable({
             ) : null}
           </div>
           <ListRowContainer grouped>
-            <DocumentRows items={items} viewer={viewer} grouped animated selection={{ selected, toggle }} />
+            <DocumentRows items={items} viewer={viewer} grouped animated selection={{ selected, toggle }} showCentre={showCentre} />
           </ListRowContainer>
           {remaining > 0 ? (
             <div className="flex justify-center">

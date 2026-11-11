@@ -29,14 +29,15 @@ async function guard(ctx: UserContext) {
   if (!(await hit(`ai:${ctx.user.id}`, 40, 60))) throw new UserFacingError("Trop de demandes à l'IA en une minute. Patientez un instant.");
 }
 
-async function record(ctx: UserContext, kind: AiKind, result: AiResult | null, success: boolean, model?: string) {
+/** Consommation rattachée au centre du document concerné (compteur par centre de l'admin). */
+async function record(ctx: UserContext, centreId: string, kind: AiKind, result: AiResult | null, success: boolean, model?: string) {
   const u = result?.usage;
   await collections()
     .aiUsage()
     .insertOne({
       _id: randomUUID(),
       organizationId: ctx.user.organizationId,
-      centreId: ctx.activeCentre._id,
+      centreId,
       userId: ctx.user.id,
       kind,
       model: u?.model ?? model ?? "inconnu",
@@ -55,18 +56,24 @@ async function record(ctx: UserContext, kind: AiKind, result: AiResult | null, s
  * Appel au modèle avec validation Zod de la sortie : une seconde tentative en cas de
  * sortie invalide, puis erreur explicite (bascule en saisie manuelle côté interface).
  */
-async function callValidated<T>(ctx: UserContext, kind: AiKind, call: () => Promise<AiResult>, schema: z.ZodType<T>): Promise<T> {
+async function callValidated<T>(
+  ctx: UserContext,
+  centreId: string,
+  kind: AiKind,
+  call: () => Promise<AiResult>,
+  schema: z.ZodType<T>,
+): Promise<T> {
   let lastError: unknown = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     let result: AiResult | null = null;
     try {
       result = await call();
       const parsed = schema.safeParse(result.raw);
-      await record(ctx, kind, result, parsed.success);
+      await record(ctx, centreId, kind, result, parsed.success);
       if (parsed.success) return parsed.data;
       lastError = new AiError("Réponse du modèle non conforme.", "invalid_output");
     } catch (err) {
-      if (!result) await record(ctx, kind, null, false);
+      if (!result) await record(ctx, centreId, kind, null, false);
       if (err instanceof AiError && err.code !== "invalid_output") throw err;
       lastError = err;
     }
@@ -96,7 +103,7 @@ export async function extractBilan(ctx: UserContext, attachmentId: string): Prom
   if (!file) throw new UserFacingError("Fichier introuvable : déposez à nouveau le bilan.");
   const input = await prepareForVision(file, att.mimeType);
   try {
-    const raw = await callValidated(ctx, "extraction", () => aiProvider().extract(input), rawExtractionSchema);
+    const raw = await callValidated(ctx, att.centreId, "extraction", () => aiProvider().extract(input), rawExtractionSchema);
     const audiometry = toAudiometry(raw);
     if (!raw.is_audiogram || countAllMeasures(audiometry) === 0) {
       throw new AiError("Aucune mesure audiométrique n'a été trouvée dans ce document.", "not_audiogram");
@@ -151,6 +158,7 @@ export async function generateComment(
   const s = ctx.organization.settings.ai;
   const out = await callValidated(
     ctx,
+    doc.centreId,
     "comment",
     () => aiProvider().writeComment({ facts, factsText, style: input.style, tone: s.tone, minLines: s.commentMinLines, maxLines: s.commentMaxLines }),
     commentSchema,
@@ -165,16 +173,16 @@ export async function reformulateMotif(ctx: UserContext, documentId: string, inp
   const { entities } = await entitiesFor(ctx, input.patientId, input.prescriberId);
   const notes = pseudonymize(input.notes.slice(0, 1000), entities);
   if (!notes.trim()) throw new UserFacingError("Saisissez ou dictez d'abord quelques mots.");
-  const out = await callValidated(ctx, "motif", () => aiProvider().reformulateMotif(notes), motifSchema);
+  const out = await callValidated(ctx, doc.centreId, "motif", () => aiProvider().reformulateMotif(notes), motifSchema);
   await audit(actor(ctx), "ai.generate", "document", doc._id, { kind: "motif" });
   return reidentify(out.motif, entities);
 }
 
 export async function cleanDictation(ctx: UserContext, documentId: string, input: { text: string; patientId: string | null; prescriberId: string | null }): Promise<string> {
   await guard(ctx);
-  await getDocumentForUser(ctx, documentId);
+  const doc = await getDocumentForUser(ctx, documentId);
   const { entities } = await entitiesFor(ctx, input.patientId, input.prescriberId);
   const text = pseudonymize(input.text.slice(0, 4000), entities);
-  const out = await callValidated(ctx, "dictation", () => aiProvider().cleanDictation(text), dictationSchema);
+  const out = await callValidated(ctx, doc.centreId, "dictation", () => aiProvider().cleanDictation(text), dictationSchema);
   return reidentify(out.text, entities);
 }

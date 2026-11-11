@@ -139,6 +139,7 @@ export const dirFr = {
     scopeLabel: "Portée",
     scopeActive: "Centre actif",
     scopeAll: "Tous mes centres",
+    pickCentre: "Choisir un centre…",
     count: (n: number) => plural(n, "patient", "patients"),
     orderRecent: "récemment modifiés en premier",
     orderAlpha: "par ordre alphabétique",

@@ -13,7 +13,8 @@ export default async function PatientsPage({ searchParams }: { searchParams: Pro
   const ctx = await getUserContext();
   const sp = await searchParams;
   const q = (sp.q ?? "").slice(0, 80);
-  const scope = sp.portee === "all" ? "all" : "active";
+  // Vue « Tous les centres » (admin) : tous les centres d'office, sans choix de portée.
+  const scope = sp.portee === "all" || ctx.allCentres ? "all" : "active";
   const page = Math.max(1, Number(sp.page) || 1);
   const { items, total } = await listPatients(ctx, { q, scope, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE });
   const organizationId = ctx.user.organizationId;
@@ -50,8 +51,10 @@ export default async function PatientsPage({ searchParams }: { searchParams: Pro
       q={q}
       scope={scope}
       centres={ctx.centres.map((c) => ({ id: c._id, name: c.name }))}
-      activeCentreId={ctx.activeCentre._id}
+      // Vue « Tous les centres » : pas de centre pré-sélectionné à la création d'un patient.
+      activeCentreId={ctx.allCentres ? "" : ctx.activeCentre._id}
       activeCentreName={ctx.activeCentre.name}
+      scopeLocked={ctx.allCentres}
       prescriberNames={Object.fromEntries(prescribers.map((p) => [p._id, formatPrescriberName(p)]))}
       drafts={draftByPatient}
       salutations={ctx.organization.settings.documents.salutations}

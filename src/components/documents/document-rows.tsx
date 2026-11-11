@@ -29,6 +29,7 @@ import type { Role } from "@/lib/schemas/common";
 import { isSendableType } from "@/lib/schemas/document";
 import { cn } from "@/lib/utils";
 import { deleteDocumentAction } from "@/server/actions/documents";
+import { useCentreScope } from "@/components/layout/centre-scope";
 import type { DocumentDispatchSummary, DocumentListItem } from "@/server/services/hydrate";
 
 /** Utilisateur qui consulte la liste : décide des actions proposées (toujours revérifiées côté serveur). */
@@ -136,6 +137,7 @@ export function DocumentRows({
   grouped = false,
   animated = false,
   selection,
+  showCentre = false,
 }: {
   items: DocumentListItem[];
   viewer: DocumentViewer;
@@ -146,8 +148,12 @@ export function DocumentRows({
   grouped?: boolean;
   animated?: boolean;
   selection?: DocumentSelection;
+  /** Plusieurs centres listés : nom du centre dans le sous-titre. */
+  showCentre?: boolean;
 }) {
   const router = useRouter();
+  const { centres } = useCentreScope();
+  const centreName = (id: string) => (showCentre ? (centres.find((c) => c.id === id)?.name ?? null) : null);
   const { create } = useCreateDocument();
   const [removed, setRemoved] = useState<readonly string[]>([]);
   const [toDelete, setToDelete] = useState<DocumentListItem | null>(null);
@@ -200,7 +206,7 @@ export function DocumentRows({
           )
         }
         title={item.patientName ?? <span className="font-normal text-muted-foreground italic">{dispFr.documents.noPatient}</span>}
-        subtitle={joinMeta([type, item.prescriberName ?? missingPrescriber, showAuthor ? item.authorName : null])}
+        subtitle={joinMeta([type, centreName(item.centreId), item.prescriberName ?? missingPrescriber, showAuthor ? item.authorName : null])}
         // Mobile : une seule information secondaire, le prescripteur (ou ce qui manque, sinon le type).
         subtitleMobile={item.prescriberName ?? missingPrescriber ?? type}
         trailing={item.dispatches && (item.status === "ENVOYE" || item.status === "ERREUR") ? <DispatchIndicators summary={item.dispatches} /> : undefined}

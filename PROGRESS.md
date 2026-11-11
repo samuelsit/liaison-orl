@@ -1,6 +1,17 @@
 # Avancement
 
-État au 2026-11-09 : **toutes les phases sont terminées**, refonte des documents sortants, changement de périmètre de l'adressage et **bilan en plusieurs fichiers fusionnés** compris. Le parcours complet fonctionne de bout en bout en mode démo (sans aucune clé) et il est couvert par les tests automatisés.
+État au 2026-11-11 : **toutes les phases sont terminées**, refonte des documents sortants, changement de périmètre de l'adressage et **bilan en plusieurs fichiers fusionnés** compris. Le parcours complet fonctionne de bout en bout en mode démo (sans aucune clé) et il est couvert par les tests automatisés.
+
+## Vue « Tous les centres » pour les administrateurs (2026-11-11)
+
+Demande du propriétaire : une vue d'ensemble de l'activité de tous les centres depuis la liste déroulante. Décision n° 86 dans [DECISIONS.md](DECISIONS.md).
+
+- **Sélecteur** : « Tous les centres » en tête de la liste (barre latérale et palette Cmd/Ctrl+K), pour les administrateurs seulement ; choix mémorisé (cookie + préférence), le dernier centre réel reste connu.
+- **Accueil** : sections « À finir », « Prêts à envoyer », « Envoyés récemment », « Erreurs d'envoi » cumulées sur tous les centres, avec le nom du centre sur chaque ligne ; nouvelle carte **« Par centre »** (à finir, prêts à envoyer, erreurs d'envoi, documents du mois, total) dont chaque ligne ouvre la vue du centre.
+- **Listes** : compteurs de la barre latérale, Documents, Envois, Patients et ORL couvrent tous les centres ; les filtres « Tous mes centres » / « Centre actif » devenus inutiles sont masqués.
+- **Création** : « Pour quel centre ? » s'ouvre à la création d'un document sans patient (tous les déclencheurs) ; le centre d'un patient est obligatoire ; un ORL sans centre devient une fiche commune. Contrôles côté serveur (centre de l'organisation, refus sans centre).
+- **Justesse des compteurs** : la consommation IA est rattachée au centre du document (et non plus au centre actif) ; l'éditeur utilise le centre du document.
+- **Tests** : règle et périmètre (`scope.test.ts`), action de changement de centre (`navigation.test.ts`), création / lectures / vue d'ensemble / IA (`all-centres.test.ts`), E2E admin (vue d'ensemble, choix du centre, retour à un centre) et droits (entrée absente pour un audioprothésiste).
 
 ## Bilan en plusieurs fichiers, fusion automatique, gain prothétique (2026-11-09)
 
@@ -85,12 +96,12 @@ Refonte de tous les documents et e-mails sortants : sobres, lisibles, paramétr�
 
 | Commande | Résultat |
 |---|---|
-| `npm run lint` | ✅ 0 erreur, 0 avertissement (2026-11-09) |
+| `npm run lint` | ✅ 0 erreur, 0 avertissement (2026-11-11) |
 | `npm run typecheck` | ✅ |
-| `npm run test` | ✅ 45 fichiers, 367 tests (unitaires, intégration sur base MongoDB embarquée, zones Pingen, non-régression visuelle PDF et e-mails) |
+| `npm run test` | ✅ 48 fichiers, 383 tests (unitaires, intégration sur base MongoDB embarquée, zones Pingen, non-régression visuelle PDF et e-mails) |
 | `npm run build` | ✅ |
 | `npm run render:docs` | ✅ 18 PDF, zones Pingen conformes partout |
-| `npm run test:e2e` | ⚠️ 23 / 28 (2026-11-09) : adressage (impression / téléchargement), compte rendu (envoi + lien sécurisé) et compte rendu **en trois fichiers fusionnés** ✅ ; 5 échecs **antérieurs** inchangés, voir « Problèmes connus » n° 8 |
+| `npm run test:e2e` | ⚠️ 25 / 30 (2026-11-11) : adressage, compte rendu (envoi + lien sécurisé), compte rendu en trois fichiers fusionnés et **vue « Tous les centres »** (admin + droits) ✅ ; 5 échecs **antérieurs** inchangés, voir « Problèmes connus » n° 8. Nouvelle vue vérifiée à part avec axe-core : 0 violation (carte « Par centre », sélecteur, fenêtre de choix du centre). |
 
 ## Ce qui est livré
 
@@ -120,7 +131,7 @@ Refonte de tous les documents et e-mails sortants : sobres, lisibles, paramétr�
 **Exploitation**
 - `npm run demo` (tout en local, sans clé), `npm run seed`, `npm run admin:create`, `npm run db:indexes`, `npm run ai:check`, `npm run render:docs`, `npm run render:emails`, `npm run pingen:check`.
 - [README.md](README.md) : mise en production pas à pas (Atlas, S3, Anthropic, Resend, Pingen, Vercel, domaine, webhooks, premier administrateur, vérifications, conformité).
-- [DECISIONS.md](DECISIONS.md) : 85 décisions argumentées.
+- [DECISIONS.md](DECISIONS.md) : 86 décisions argumentées.
 
 ## Tests de bout en bout (Playwright, mode démo)
 

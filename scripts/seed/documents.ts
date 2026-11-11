@@ -3,6 +3,7 @@ import path from "node:path";
 import { collections } from "@/lib/db/collections";
 import type { CentreDoc, OrganizationDoc, PatientDoc, PrescriberDoc } from "@/lib/db/types";
 import type { UserContext } from "@/lib/auth/session";
+import { withScope } from "@/lib/auth/scope";
 import { todayIso } from "@/lib/dates";
 import { formatPersonName } from "@/lib/text";
 import type { AdressageData, CompteRenduData } from "@/lib/schemas/document";
@@ -33,26 +34,29 @@ export function isoDaysAgo(n: number): string {
 async function contextFor(s: SeedContext, email: string, centreKey: string): Promise<UserContext> {
   const u = (await collections().users().findOne({ email }))!;
   const centres = u.role === "admin" ? s.centres : s.centres.filter((c) => u.centreIds.includes(c._id));
-  return {
-    user: {
-      id: u._id,
-      email: u.email,
-      firstName: u.firstName,
-      lastName: u.lastName,
-      fullName: formatPersonName(u.firstName, u.lastName),
-      title: u.title,
-      role: u.role,
-      organizationId: u.organizationId,
-      centreIds: u.centreIds,
-      canSend: u.canSend,
-      twoFactorEnabled: Boolean(u.twoFactorEnabled),
-      twoFactorRequired: u.role === "admin" && !u.twoFactorExempt,
-      hasSignature: Boolean(u.signature),
+  return withScope(
+    {
+      user: {
+        id: u._id,
+        email: u.email,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        fullName: formatPersonName(u.firstName, u.lastName),
+        title: u.title,
+        role: u.role,
+        organizationId: u.organizationId,
+        centreIds: u.centreIds,
+        canSend: u.canSend,
+        twoFactorEnabled: Boolean(u.twoFactorEnabled),
+        twoFactorRequired: u.role === "admin" && !u.twoFactorExempt,
+        hasSignature: Boolean(u.signature),
+      },
+      organization: s.org,
+      centres,
+      activeCentre: centres.find((c) => c._id === s.centreIdByKey.get(centreKey)) ?? centres[0]!,
     },
-    organization: s.org,
-    centres,
-    activeCentre: centres.find((c) => c._id === s.centreIdByKey.get(centreKey)) ?? centres[0]!,
-  };
+    false,
+  );
 }
 
 const patientBy = (s: SeedContext, lastName: string) => s.patients.find((p) => p.lastName === lastName)!;
@@ -352,7 +356,8 @@ export async function seedDocuments(s: SeedContext): Promise<{ bilansDir: string
     patient: "Aubert",
     data: {
       ...DEVICE,
-      comments: "Appareillage bilatéral en cours d'adaptation ; port encore irrégulier. Contrôle prévu dans quinze jours.",
+      comments:
+        "Appareillage bilatéral en cours d'adaptation ; port encore irrégulier. Contrôle prévu dans quinze jours.",
     },
     validate: true,
     send: ["EMAIL"],
@@ -541,8 +546,14 @@ export async function seedDocuments(s: SeedContext): Promise<{ bilansDir: string
 
 /** Invariant : un courrier d'adressage n'est jamais envoyé (ni ENVOYÉ, ni ERREUR, ni envoi rattaché). */
 async function assertNoAdressageSent() {
-  const adressages = await collections().documents().find({ type: "ADRESSAGE" }, { projection: { _id: 1, status: 1 } }).toArray();
+  const adressages = await collections()
+    .documents()
+    .find({ type: "ADRESSAGE" }, { projection: { _id: 1, status: 1 } })
+    .toArray();
   const wrongStatus = adressages.filter((d) => d.status === "ENVOYE" || d.status === "ERREUR").length;
-  const linked = await collections().dispatches().countDocuments({ documentId: { $in: adressages.map((d) => d._id) } });
-  if (wrongStatus || linked) throw new Error(`Seed : ${wrongStatus} adressage(s) envoyé(s) ou en erreur, ${linked} envoi(s) rattaché(s).`);
+  const linked = await collections()
+    .dispatches()
+    .countDocuments({ documentId: { $in: adressages.map((d) => d._id) } });
+  if (wrongStatus || linked)
+    throw new Error(`Seed : ${wrongStatus} adressage(s) envoyé(s) ou en erreur, ${linked} envoi(s) rattaché(s).`);
 }

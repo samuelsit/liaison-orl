@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ACTIVE_CENTRE_COOKIE, accessibleCentres, getUserContextOrThrow, requireUserOrThrow } from "@/lib/auth/session";
+import { ALL_CENTRES, canViewAllCentres } from "@/lib/auth/scope";
 import { collections } from "@/lib/db/collections";
 import { prefixWordsRegex } from "@/lib/text";
 import { fr } from "@/lib/i18n/fr";
@@ -17,9 +18,19 @@ export async function setActiveCentreAction(centreId: string): Promise<ActionRes
     const user = await requireUserOrThrow();
     const id = z.string().min(1).parse(centreId);
     const centres = await accessibleCentres(user);
-    if (!centres.some((c) => c._id === id)) throw new UserFacingError("Ce centre ne fait pas partie de vos centres.");
+    const all = id === ALL_CENTRES;
+    if (all && !canViewAllCentres(user, centres.length)) {
+      throw new UserFacingError("La vue « Tous les centres » est réservée aux administrateurs.");
+    }
+    if (!all && !centres.some((c) => c._id === id)) throw new UserFacingError("Ce centre ne fait pas partie de vos centres.");
     (await cookies()).set(ACTIVE_CENTRE_COOKIE, id, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 365 });
-    await collections().users().updateOne({ _id: user.id }, { $set: { "preferences.activeCentreId": id } });
+    // Vue « Tous les centres » : le dernier centre réel reste mémorisé (création, retour à la vue d'un centre).
+    await collections()
+      .users()
+      .updateOne(
+        { _id: user.id },
+        { $set: all ? { "preferences.viewAllCentres": true } : { "preferences.activeCentreId": id, "preferences.viewAllCentres": false } },
+      );
     revalidatePath("/", "layout");
     return undefined;
   });

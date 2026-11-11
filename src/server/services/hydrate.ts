@@ -36,6 +36,8 @@ export interface DocumentListItem {
 export interface DispatchListItem {
   id: string;
   documentId: string;
+  /** Centre de l'envoi (nom affiché quand plusieurs centres sont listés). */
+  centreId?: string;
   documentType: DocumentDoc["type"] | null;
   channel: DispatchDoc["channel"];
   status: DispatchDoc["status"];
@@ -132,6 +134,7 @@ export async function hydrateDispatches(dispatches: DispatchDoc[]): Promise<Disp
   return dispatches.map((d) => ({
     id: d._id,
     documentId: d.documentId,
+    centreId: d.centreId,
     documentType: typeById.get(d.documentId) ?? null,
     channel: d.channel,
     status: d.status,

@@ -52,6 +52,7 @@ export function PatientDirectory({
   drafts,
   salutations,
   openNew,
+  scopeLocked = false,
 }: {
   items: PatientView[];
   total: number;
@@ -67,6 +68,8 @@ export function PatientDirectory({
   drafts: Record<string, string>;
   salutations: string[];
   openNew: boolean;
+  /** Vue « Tous les centres » : portée imposée, sans contrôle « Ce centre / Tous ». */
+  scopeLocked?: boolean;
 }) {
   const router = useRouter();
   const { update, pending } = useUrlFilters();
@@ -161,7 +164,7 @@ export function PatientDirectory({
           />
         }
         status={
-          centres.length > 1 ? (
+          centres.length > 1 && !scopeLocked ? (
             <SegmentedControl<"active" | "all">
               size="sm"
               aria-label={T.scopeLabel}

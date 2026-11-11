@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { FileText, Mail, Mailbox, RotateCcw, Stethoscope, TriangleAlert } from "lucide-react";
 import { DispatchStatusBadge } from "@/components/documents/status-badge";
+import { useCentreScope } from "@/components/layout/centre-scope";
 import { ListRow, ListRowGroup, ListRowIcon, ListRows } from "@/components/layout/list-row";
 import type { RowAction } from "@/components/layout/list-row-actions";
 import { fr } from "@/lib/i18n/fr";
@@ -12,7 +13,17 @@ import { ResendDialog, type ResendTarget } from "./resend-dialog";
 import { groupByDate } from "./list-utils";
 import { RowActionsCluster } from "./row-actions-cluster";
 
-function DispatchRow({ item, canSend, onResend }: { item: DispatchListItem; canSend: boolean; onResend: (t: ResendTarget) => void }) {
+function DispatchRow({
+  item,
+  canSend,
+  onResend,
+  centreName,
+}: {
+  item: DispatchListItem;
+  canSend: boolean;
+  onResend: (t: ResendTarget) => void;
+  centreName: string | null;
+}) {
   const Icon = item.error ? TriangleAlert : item.channel === "EMAIL" ? Mail : Mailbox;
   const recipient = `${fr.channels[item.channel]} → ${item.recipientName}`;
   const type = item.documentType ? fr.documentTypesShort[item.documentType] : null;
@@ -52,7 +63,7 @@ function DispatchRow({ item, canSend, onResend }: { item: DispatchListItem; canS
       title={item.patientName ?? "—"}
       subtitle={
         <>
-          {[recipient, type].filter(Boolean).join(" · ")}
+          {[recipient, type, centreName].filter(Boolean).join(" · ")}
           {errorLine ? <> · {errorLine}</> : null}
         </>
       }
@@ -74,19 +85,24 @@ export function DispatchRows({
   canSend,
   grouped = false,
   animated = false,
+  showCentre = false,
 }: {
   items: DispatchListItem[];
   canSend: boolean;
   grouped?: boolean;
   animated?: boolean;
+  /** Plusieurs centres listés : nom du centre dans le sous-titre. */
+  showCentre?: boolean;
 }) {
+  const { centres } = useCentreScope();
+  const centreName = (id?: string) => (showCentre && id ? (centres.find((c) => c.id === id)?.name ?? null) : null);
   const [target, setTarget] = useState<ResendTarget | null>(null);
   const [open, setOpen] = useState(false);
   const onResend = (t: ResendTarget) => {
     setTarget(t);
     setOpen(true);
   };
-  const row = (d: DispatchListItem) => <DispatchRow key={d.id} item={d} canSend={canSend} onResend={onResend} />;
+  const row = (d: DispatchListItem) => <DispatchRow key={d.id} item={d} canSend={canSend} onResend={onResend} centreName={centreName(d.centreId)} />;
 
   return (
     <>

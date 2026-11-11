@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Building2, CheckCircle2, CircleAlert, FilePen, Mail, Send, SendHorizontal } from "lucide-react";
+import { Building2, CheckCircle2, CircleAlert, FilePen, LayoutGrid, Mail, Send, SendHorizontal } from "lucide-react";
 import { NewDocumentButtons } from "@/components/home/new-document-buttons";
+import { CentreOverview } from "@/components/home/centre-overview";
 import { homeDateLine, homeGreeting } from "@/components/home/home-format";
 import { DocumentList } from "@/components/documents/document-list";
 import { DispatchList } from "@/components/dispatches/dispatch-list";
@@ -19,6 +20,7 @@ import { ERROR_STATUSES } from "@/lib/schemas/dispatch";
 import { listDocuments } from "@/server/services/documents";
 import { hydrateDispatches, hydrateDocuments } from "@/server/services/hydrate";
 import { refreshMockDispatches } from "@/server/services/dispatch-status";
+import { centreOverview } from "@/server/services/overview";
 
 /** Lignes affichées par section ; les compteurs, eux, sont exacts (countDocuments). */
 const ROWS = 5;
@@ -26,14 +28,14 @@ const H = shellFr.home;
 
 export default async function HomePage() {
   const ctx = await getUserContext();
-  const { user, activeCentre, organization } = ctx;
+  const { user, activeCentre, organization, allCentres, scopeCentreIds: centreIds } = ctx;
   await refreshMockDispatches(user.organizationId).catch(() => undefined);
-  const centreIds = [activeCentre._id];
-  const scope = { organizationId: user.organizationId, centreId: activeCentre._id };
+  // Centre actif, ou tous les centres en vue d'ensemble (administrateurs).
+  const scope = { organizationId: user.organizationId, centreId: { $in: centreIds } };
   const errorFilter = { ...scope, status: { $in: [...ERROR_STATUSES] }, acknowledged: { $ne: true } };
   // « Prêts à envoyer » : comptes rendus validés (un adressage validé s'imprime, il ne s'envoie pas).
   const toSend = { ...scope, status: "VALIDE" as const, type: "COMPTE_RENDU" as const };
-  const [drafts, validated, recent, errors, draftCount, validCount, errorCount] = await Promise.all([
+  const [drafts, validated, recent, errors, draftCount, validCount, errorCount, overview] = await Promise.all([
     listDocuments(user.organizationId, { centreIds, status: "BROUILLON" }, ROWS),
     listDocuments(user.organizationId, { centreIds, status: "VALIDE", type: "COMPTE_RENDU" }, ROWS),
     collections()
@@ -43,10 +45,14 @@ export default async function HomePage() {
       .limit(ROWS)
       .toArray(),
     collections().dispatches().find(errorFilter).sort({ updatedAt: -1 }).limit(ROWS).toArray(),
-    collections().documents().countDocuments({ ...scope, status: "BROUILLON" }),
+    collections()
+      .documents()
+      .countDocuments({ ...scope, status: "BROUILLON" }),
     collections().documents().countDocuments(toSend),
     collections().dispatches().countDocuments(errorFilter),
+    allCentres ? centreOverview(user.organizationId, centreIds) : null,
   ]);
+  const centreNames = new Map(ctx.centres.map((c) => [c._id, c.name]));
   const [draftItems, validItems, recentItems, errorItems] = await Promise.all([
     hydrateDocuments(drafts),
     hydrateDocuments(validated),
@@ -70,13 +76,35 @@ export default async function HomePage() {
           </h1>
         </div>
         <p className="inline-flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-full border bg-card px-3 text-meta shadow-xs">
-          <Building2 className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-          <span className="sr-only">{shellFr.sidebar.activeCentre} : </span>
-          <span className="truncate font-medium text-foreground">{activeCentre.name}</span>
+          {allCentres ? (
+            <>
+              <LayoutGrid className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="truncate font-medium text-foreground">{H.allCentresChip(centreIds.length)}</span>
+            </>
+          ) : (
+            <>
+              <Building2 className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="sr-only">{shellFr.sidebar.activeCentre} : </span>
+              <span className="truncate font-medium text-foreground">{activeCentre.name}</span>
+            </>
+          )}
         </p>
       </header>
 
       <NewDocumentButtons />
+
+      {overview ? (
+        <SectionCard
+          flush
+          title={H.overview.title}
+          icon={<LayoutGrid aria-hidden />}
+          description={H.overview.description}
+        >
+          <CentreOverview
+            items={overview.map((r) => ({ ...r, id: r.centreId, name: centreNames.get(r.centreId) ?? "" }))}
+          />
+        </SectionCard>
+      ) : null}
 
       {errorItems.length > 0 ? (
         <SectionCard
@@ -88,16 +116,27 @@ export default async function HomePage() {
           href="/envois?filtre=erreurs"
           count={errorCount}
         >
-          <DispatchList items={errorItems} empty="" />
+          <DispatchList items={errorItems} empty="" showCentre={allCentres} />
         </SectionCard>
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
-        <SectionCard flush title={fr.home.toFinish} icon={<FilePen aria-hidden />} href="/documents?statut=BROUILLON" count={draftCount}>
+        <SectionCard
+          flush
+          title={fr.home.toFinish}
+          icon={<FilePen aria-hidden />}
+          href="/documents?statut=BROUILLON"
+          count={draftCount}
+        >
           {draftItems.length > 0 ? (
-            <DocumentList items={draftItems} empty={H.toFinishEmptyTitle} />
+            <DocumentList items={draftItems} empty={H.toFinishEmptyTitle} showCentre={allCentres} />
           ) : (
-            <EmptyState tone="success" icon={<CheckCircle2 aria-hidden />} title={H.toFinishEmptyTitle} description={H.toFinishEmptyDescription} />
+            <EmptyState
+              tone="success"
+              icon={<CheckCircle2 aria-hidden />}
+              title={H.toFinishEmptyTitle}
+              description={allCentres ? H.toFinishEmptyDescriptionAll : H.toFinishEmptyDescription}
+            />
           )}
         </SectionCard>
         <SectionCard
@@ -117,7 +156,7 @@ export default async function HomePage() {
           }
         >
           {validItems.length > 0 ? (
-            <DocumentList items={validItems} empty={H.toSendEmptyTitle} />
+            <DocumentList items={validItems} empty={H.toSendEmptyTitle} showCentre={allCentres} />
           ) : (
             <EmptyState
               icon={<Send aria-hidden />}
@@ -149,7 +188,7 @@ export default async function HomePage() {
         }
       >
         {recentItems.length > 0 ? (
-          <DispatchList items={recentItems} empty="" />
+          <DispatchList items={recentItems} empty="" showCentre={allCentres} />
         ) : (
           <EmptyState icon={<Mail aria-hidden />} title={H.recentEmptyTitle} description={H.recentEmptyDescription} />
         )}

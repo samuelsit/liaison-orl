@@ -11,6 +11,7 @@ import {
   FileText,
   House,
   Keyboard,
+  LayoutGrid,
   Loader2,
   LogOut,
   Monitor,
@@ -53,7 +54,8 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
+import { ALL_CENTRES } from "@/lib/auth/scope";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   DropdownMenu,
@@ -79,7 +81,10 @@ const S = shellFr.sidebar;
 export interface SidebarProps {
   brand: { name: string; logo: string | null };
   centres: { id: string; name: string }[];
+  /** Identifiant du centre actif, ou ALL_CENTRES en vue « Tous les centres ». */
   activeCentreId: string;
+  /** Administrateur d'une organisation à plusieurs centres : entrée « Tous les centres ». */
+  canViewAll?: boolean;
   user: { fullName: string; email: string; role: Role; initials: string };
   /** Brouillons du centre actif (même règle que « À finir » de l'accueil) et erreurs d'envoi non traitées. */
   counts: { drafts: number; errors: number };
@@ -106,7 +111,7 @@ const DIRECTORY_NAV: NavItem[] = [
 
 const ADMIN_NAV: NavItem[] = [{ href: "/admin", label: fr.nav.admin, icon: Settings, seq: ["g", "a"] }];
 
-export function AppSidebar({ brand, centres, activeCentreId, user, counts }: SidebarProps) {
+export function AppSidebar({ brand, centres, activeCentreId, canViewAll = false, user, counts }: SidebarProps) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
 
@@ -132,7 +137,7 @@ export function AppSidebar({ brand, centres, activeCentreId, user, counts }: Sid
         <SidebarHeader className="gap-3 p-3 group-data-[collapsible=icon]:px-2">
           <BrandHomeLink brand={brand} onNavigate={closeMobile} />
           <SidebarMenu className="gap-2">
-            <CentreSwitcher centres={centres} activeCentreId={activeCentreId} />
+            <CentreSwitcher centres={centres} activeCentreId={activeCentreId} canViewAll={canViewAll} />
             {isMobile ? null : <NewDocumentMenu />}
           </SidebarMenu>
         </SidebarHeader>
@@ -199,13 +204,23 @@ function BrandHomeLink({ brand, onNavigate }: { brand: SidebarProps["brand"]; on
 
 /* ---------- Centre actif ---------- */
 
-function CentreSwitcher({ centres, activeCentreId }: { centres: SidebarProps["centres"]; activeCentreId: string }) {
+function CentreSwitcher({
+  centres,
+  activeCentreId,
+  canViewAll,
+}: {
+  centres: SidebarProps["centres"];
+  activeCentreId: string;
+  canViewAll: boolean;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [optimisticId, setOptimisticId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const shownId = pending && optimisticId ? optimisticId : activeCentreId;
+  const showingAll = canViewAll && shownId === ALL_CENTRES;
   const active = centres.find((c) => c.id === shownId) ?? centres[0];
+  const activeName = showingAll ? S.allCentres : (active?.name ?? "");
 
   function changeCentre(id: string) {
     setOpen(false);
@@ -215,7 +230,7 @@ function CentreSwitcher({ centres, activeCentreId }: { centres: SidebarProps["ce
       const res = await setActiveCentreAction(id);
       if (!res.ok) toast.error(res.error);
       else {
-        toast.success(S.centreChanged(centres.find((c) => c.id === id)?.name ?? ""));
+        toast.success(id === ALL_CENTRES ? S.allCentresChanged : S.centreChanged(centres.find((c) => c.id === id)?.name ?? ""));
         router.refresh();
       }
     });
@@ -227,11 +242,11 @@ function CentreSwitcher({ centres, activeCentreId }: { centres: SidebarProps["ce
         aria-hidden
         className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground [&_svg]:size-4"
       >
-        {pending ? <Loader2 className="animate-spin" /> : <Building2 />}
+        {pending ? <Loader2 className="animate-spin" /> : showingAll ? <LayoutGrid /> : <Building2 />}
       </span>
       <span className="grid min-w-0 flex-1 text-left leading-tight">
-        <span className="truncate text-xs text-muted-foreground">{S.activeCentre}</span>
-        <span className="truncate text-sm font-medium">{active?.name}</span>
+        <span className="truncate text-xs text-muted-foreground">{showingAll ? S.allCentresHint(centres.length) : S.activeCentre}</span>
+        <span className="truncate text-sm font-medium">{activeName}</span>
       </span>
     </>
   );
@@ -241,7 +256,7 @@ function CentreSwitcher({ centres, activeCentreId }: { centres: SidebarProps["ce
       <SidebarMenuItem>
         <div
           data-testid="centre-select"
-          title={S.centreTooltip(active?.name ?? "")}
+          title={S.centreTooltip(activeName)}
           className="flex h-12 items-center gap-2.5 rounded-lg px-1.5 group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0.5 group-data-[collapsible=icon]:[&>*:not(:first-child)]:sr-only"
         >
           {body}
@@ -257,7 +272,7 @@ function CentreSwitcher({ centres, activeCentreId }: { centres: SidebarProps["ce
           <SidebarMenuButton
             size="lg"
             data-testid="centre-select"
-            tooltip={S.centreTooltip(active?.name ?? "")}
+            tooltip={showingAll ? activeName : S.centreTooltip(activeName)}
             aria-busy={pending || undefined}
             className="px-1.5 data-[state=open]:bg-sidebar-accent"
           >
@@ -270,6 +285,18 @@ function CentreSwitcher({ centres, activeCentreId }: { centres: SidebarProps["ce
             {centres.length > 6 ? <CommandInput placeholder={S.searchCentre} /> : null}
             <CommandList>
               <CommandEmpty>{S.noCentre}</CommandEmpty>
+              {canViewAll ? (
+                <>
+                  <CommandGroup>
+                    <CommandItem value={S.allCentres} data-checked={showingAll} onSelect={() => changeCentre(ALL_CENTRES)}>
+                      <LayoutGrid aria-hidden className="text-muted-foreground" />
+                      <span className="flex-1 truncate font-medium">{S.allCentres}</span>
+                      <span className="text-meta text-muted-foreground tabular-nums">{centres.length}</span>
+                    </CommandItem>
+                  </CommandGroup>
+                  <CommandSeparator />
+                </>
+              ) : null}
               <CommandGroup heading={S.centresList}>
                 {centres.map((c) => (
                   <CommandItem key={c.id} value={c.name} data-checked={c.id === shownId} onSelect={() => changeCentre(c.id)}>

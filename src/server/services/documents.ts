@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { Filter } from "mongodb";
 import { collections } from "@/lib/db/collections";
 import type { DocumentDoc } from "@/lib/db/types";
-import { assertCan, assertCentre } from "@/lib/auth/permissions";
+import { assertCan, assertCentre, ForbiddenError } from "@/lib/auth/permissions";
 import type { UserContext } from "@/lib/auth/session";
 import { todayIso } from "@/lib/dates";
 import { defaultDataFor } from "@/lib/documents/defaults";
@@ -14,12 +14,17 @@ import { audit } from "@/server/audit";
 export async function createDocument(
   ctx: UserContext,
   type: DocumentType,
-  opts: { patientId?: string | null; prescriberId?: string | null } = {},
+  opts: { patientId?: string | null; prescriberId?: string | null; centreId?: string | null } = {},
 ): Promise<DocumentDoc> {
   assertCan(ctx.user, "document.create", ctx.organization.settings);
+  // Centres actifs accessibles (organisation comprise) : un administrateur ne peut pas viser un identifiant arbitraire.
+  if (opts.centreId && !ctx.centres.some((c) => c._id === opts.centreId)) {
+    throw new ForbiddenError("Ce centre ne fait pas partie de vos centres.");
+  }
   const userDoc = await collections().users().findOne({ _id: ctx.user.id });
   let patientId: string | null = null;
   let prescriberId: string | null = null;
+  let patientCentreId: string | null = null;
   if (opts.prescriberId) {
     const prescriber = await collections().prescribers().findOne({ _id: opts.prescriberId, organizationId: ctx.user.organizationId, archived: false });
     prescriberId = prescriber?._id ?? null;
@@ -28,14 +33,18 @@ export async function createDocument(
     const patient = await collections().patients().findOne({ _id: opts.patientId, organizationId: ctx.user.organizationId });
     if (patient && ctx.centres.some((c) => c._id === patient.centreId)) {
       patientId = patient._id;
+      patientCentreId = patient.centreId;
       prescriberId = prescriberId ?? patient.usualPrescriberId;
     }
   }
+  // Centre explicite ; en vue « Tous les centres », celui du patient ; sinon le centre actif.
+  const centreId = opts.centreId ?? (ctx.allCentres ? patientCentreId : ctx.activeCentre._id);
+  if (!centreId) throw new UserFacingError("Choisissez le centre du document.");
   const now = new Date();
   const doc: DocumentDoc = {
     _id: randomUUID(),
     organizationId: ctx.user.organizationId,
-    centreId: ctx.activeCentre._id,
+    centreId,
     type,
     status: "BROUILLON",
     patientId,

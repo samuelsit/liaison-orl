@@ -120,3 +120,12 @@ export function parseFrenchDate(input: string): string | null {
   if (d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) return null;
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
+
+/** Premier jour du mois en cours à 00:00, heure de Paris (instant UTC correspondant). */
+export function parisMonthStart(now = new Date()): Date {
+  const [y, m] = todayIso(now).split("-").map(Number) as [number, number];
+  const utcMidnight = Date.UTC(y, m - 1, 1);
+  // À 00:00 UTC le 1er, Paris affiche 01:00 (hiver) ou 02:00 (été) : c'est le décalage.
+  const parisHour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", hourCycle: "h23" }).format(new Date(utcMidnight)));
+  return new Date(utcMidnight - parisHour * 3_600_000);
+}

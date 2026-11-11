@@ -15,7 +15,7 @@ const C = shellFr.create;
  * l'ouverture de l'éditeur ; la barre d'onglets la referme au changement de page.
  */
 export function CreateSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { create, pending, pendingType } = useCreateDocument();
+  const { create, needsCentre, pending, pendingType } = useCreateDocument();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="gap-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
@@ -33,7 +33,11 @@ export function CreateSheet({ open, onOpenChange }: { open: boolean; onOpenChang
               variant="sheet"
               busy={pendingType === type}
               disabled={pending}
-              onCreate={() => create(type)}
+              onCreate={() => {
+                // Vue « Tous les centres » : la feuille laisse place à la fenêtre de choix du centre.
+                if (needsCentre()) onOpenChange(false);
+                create(type);
+              }}
               testId={`create-sheet-${type.toLowerCase()}`}
             />
           ))}

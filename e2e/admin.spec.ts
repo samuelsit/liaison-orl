@@ -48,6 +48,33 @@ test.describe("Administration", () => {
     await expect(page.getByText("hugo.lambert@demo.test").first()).toBeVisible();
   });
 
+  test("la vue « Tous les centres » donne une vue d'ensemble et demande le centre d'un nouveau document", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId("centre-select").click();
+    await page.getByRole("option", { name: /Tous les centres/ }).click();
+    const overview = page.getByTestId("centre-overview");
+    await expect(overview).toBeVisible();
+    await expect(page.getByTestId("centre-select")).toContainText("Tous les centres");
+    const rows = overview.getByRole("listitem");
+    await expect(rows).toHaveCount(11);
+
+    // Nouvel adressage : le centre est demandé, puis l'éditeur s'ouvre sur un brouillon de ce centre.
+    const centreName = (await rows.nth(1).locator("span.truncate").first().textContent())!.trim();
+    await page.getByTestId("new-adressage").click();
+    const picker = page.getByTestId("centre-picker");
+    await expect(picker.getByRole("heading", { name: "Pour quel centre ?" })).toBeVisible();
+    await picker.getByRole("option", { name: centreName, exact: true }).click();
+    await page.waitForURL(/\/documents\/[^/]+$/);
+    await page.goto("/documents?statut=BROUILLON");
+    await expect(page.getByRole("main").getByText(centreName).first()).toBeVisible();
+
+    // Un clic sur un centre de la carte ouvre la vue de ce centre.
+    await page.goto("/");
+    await page.getByTestId("centre-overview").getByRole("listitem").nth(1).getByRole("button").click();
+    await expect(page.getByTestId("centre-overview")).toBeHidden();
+    await expect(page.getByTestId("centre-select")).toContainText(centreName);
+  });
+
   test("le journal d'audit trace les actions et s'exporte en CSV", async ({ page }) => {
     await page.goto("/admin/audit");
     await expect(page.getByRole("table")).toBeVisible();

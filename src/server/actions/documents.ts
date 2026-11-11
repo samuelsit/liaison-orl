@@ -7,11 +7,15 @@ import { revalidatePath } from "next/cache";
 import { createDocument, deleteDocument, reopenDocument, saveDraft, validateDocument } from "@/server/services/documents";
 import { runAction, type ActionResult } from "./result";
 
-const createOptsSchema = z.object({ patientId: z.string().max(64).nullish(), prescriberId: z.string().max(64).nullish() });
+const createOptsSchema = z.object({
+  patientId: z.string().max(64).nullish(),
+  prescriberId: z.string().max(64).nullish(),
+  centreId: z.string().max(64).nullish(),
+});
 
 export async function createDocumentAction(
   type: string,
-  opts: { patientId?: string | null; prescriberId?: string | null } = {},
+  opts: { patientId?: string | null; prescriberId?: string | null; centreId?: string | null } = {},
 ): Promise<ActionResult<{ id: string }>> {
   return runAction(async () => {
     const ctx = await getUserContextOrThrow();

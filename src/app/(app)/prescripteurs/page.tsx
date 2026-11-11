@@ -14,7 +14,9 @@ export default async function PrescribersPage({ searchParams }: { searchParams: 
   const ctx = await getUserContext();
   const sp = await searchParams;
   const q = (sp.q ?? "").slice(0, 80);
-  const filter = FILTERS.includes(sp.filtre as PrescriberFilter) ? (sp.filtre as PrescriberFilter) : "all";
+  const requested = FILTERS.includes(sp.filtre as PrescriberFilter) ? (sp.filtre as PrescriberFilter) : "all";
+  // Vue « Tous les centres » (admin) : le filtre « Centre actif » n'a pas de sens.
+  const filter = ctx.allCentres && requested === "centre" ? "all" : requested;
   const specialty = (SPECIALTIES as readonly string[]).includes(sp.specialite ?? "") ? sp.specialite! : null;
   const page = Math.max(1, Number(sp.page) || 1);
   const { items, total } = await listPrescribers(ctx, {
@@ -35,6 +37,7 @@ export default async function PrescribersPage({ searchParams }: { searchParams: 
       filter={filter}
       specialty={specialty}
       activeCentreName={ctx.activeCentre.name}
+      hideCentreFilter={ctx.allCentres}
       centres={ctx.centres.map((c) => ({ id: c._id, name: c.name }))}
       salutations={settings.documents.salutations}
       canImport={can(ctx.user, "prescriber.import", settings)}
