@@ -24,6 +24,30 @@ interface LetterJson {
   };
 }
 
+/**
+ * Erreur d'authentification explicite : environnement réellement utilisé + réponse OAuth de Pingen
+ * (error / error_description, jamais de secret). Journalisée côté serveur pour les logs Vercel.
+ */
+export async function authError(res: Response, environment: PingenConfig["environment"], identityUrl: string): Promise<PostalError> {
+  let reason = "";
+  try {
+    const body = (await res.json()) as { error?: string; error_description?: string; message?: string; hint?: string };
+    reason = [body.error, body.error_description ?? body.message, body.hint].filter(Boolean).join(" — ");
+  } catch {
+    // corps non JSON
+  }
+  console.error(`[pingen] authentification refusée (${environment}, ${identityUrl}) : HTTP ${res.status}${reason ? ` ${reason}` : ""}`);
+  const envHint =
+    environment === "staging"
+      ? "L'application utilise l'environnement STAGING de Pingen : la production n'est utilisée que sur le déploiement Production de Vercel avec PINGEN_ENV=production. Des identifiants créés sur app.pingen.com y sont refusés."
+      : "L'application utilise l'environnement PRODUCTION de Pingen : les identifiants doivent provenir de app.pingen.com (pas de app-staging.pingen.com).";
+  return new PostalError(
+    `Authentification Pingen refusée (${environment}, HTTP ${res.status}${reason ? ` : ${reason}` : ""}).`,
+    "auth",
+    `${envHint} Vérifiez aussi PINGEN_CLIENT_ID / PINGEN_CLIENT_SECRET (sans espace ni guillemet), puis redéployez.`,
+  );
+}
+
 /** Client Pingen API v2 (OAuth2 client_credentials, JSON:API). */
 export class PingenProvider implements PostalProvider {
   readonly name = "pingen" as const;
@@ -47,7 +71,7 @@ export class PingenProvider implements PostalProvider {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ grant_type: "client_credentials", client_id: this.cfg.clientId, client_secret: this.cfg.clientSecret, scope: "letter webhook organisation_read" }),
     });
-    if (!res.ok) throw new PostalError("Authentification Pingen refusée.", "auth", "Vérifiez PINGEN_CLIENT_ID / PINGEN_CLIENT_SECRET et l'environnement (staging/production).");
+    if (!res.ok) throw await authError(res, this.cfg.environment, this.identity);
     const json = (await res.json()) as { access_token: string; expires_in: number };
     this.token = { value: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 };
     return this.token.value;
